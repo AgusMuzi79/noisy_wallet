@@ -1,16 +1,16 @@
 import { Tabs } from 'expo-router';
+import BottomNav from '../../src/components/BottomNav';
 
 export default function TabLayout() {
   return (
-    <Tabs>
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Inicio', tabBarLabel: 'Inicio' }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{ title: 'Configuración', tabBarLabel: 'Config' }}
-      />
+    <Tabs
+      tabBar={props => <BottomNav {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="history" />
+      <Tabs.Screen name="income" />
+      <Tabs.Screen name="categories" />
     </Tabs>
   );
 }
