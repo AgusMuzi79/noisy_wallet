@@ -57,6 +57,26 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- ============================================================
+-- Row Level Security
+-- No individual user accounts exist — both devices share the anon key.
+-- RLS is enabled so the tables aren't open without credentials, and
+-- policies grant full access to the anon role (the shared app key).
+-- monthly_credits is write-guarded: only the Edge Function (service role)
+-- can insert; the app only reads it.
+-- ============================================================
+ALTER TABLE categories       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recurring_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE monthly_credits   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings          ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "anon_all" ON categories        FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_all" ON recurring_sources  FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_all" ON transactions       FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_read" ON monthly_credits   FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_all" ON settings           FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ============================================================
 -- Helper view: current balance
 -- ============================================================
 CREATE OR REPLACE VIEW current_balance AS
