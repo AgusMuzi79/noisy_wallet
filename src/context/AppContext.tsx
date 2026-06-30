@@ -55,6 +55,8 @@ interface AppContextValue {
   updateSource(id: string, patch: Partial<Omit<RecurringSource, 'id'>>): Promise<void>;
   removeSource(id: string): Promise<void>;
   addCategory(c: Omit<Category, 'id'>): Promise<void>;
+  updateCategory(id: string, patch: Partial<Omit<Category, 'id'>>): Promise<void>;
+  deleteCategory(id: string): Promise<void>;
   setStyle(style: 'lab' | 'calm'): void;
   saveSettings(patch: { notifEnabled?: boolean; notifHour?: number; lockPin?: boolean }): Promise<void>;
   setBio(bio: boolean): void;
@@ -303,6 +305,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await refetchCategories();
   }, [refetchCategories]);
 
+  const updateCategory = useCallback(async (id: string, patch: Partial<Omit<Category, 'id'>>) => {
+    await supabase.from('categories').update(patch).eq('id', id);
+    await refetchCategories();
+  }, [refetchCategories]);
+
+  const deleteCategory = useCallback(async (id: string) => {
+    await supabase.from('categories').update({ active: false }).eq('id', id);
+    await refetchCategories();
+  }, [refetchCategories]);
+
   const setStyle = useCallback((style: 'lab' | 'calm') => {
     setState(s => ({ ...s, style }));
     AsyncStorage.setItem(STYLE_KEY, style);
@@ -352,7 +364,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       state, loading,
       addMovement, deleteMovement,
       addSource, updateSource, removeSource,
-      addCategory,
+      addCategory, updateCategory, deleteCategory,
       setStyle,
       saveSettings,
       setBio,

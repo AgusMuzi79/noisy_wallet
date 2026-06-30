@@ -28,7 +28,7 @@ export default function CategoriesScreen() {
 
         <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
           {state.categories.map(c => (
-            <View key={c.id} style={styles.card}>
+            <Pressable key={c.id} style={styles.card} onPress={() => router.push(`/edit-category?id=${c.id}`)}>
               <View style={[styles.cardIcon, { backgroundColor: hexAlpha(c.color, 0.15) }]}>
                 <Feather name={c.icon as any} size={22} color={c.color} />
               </View>
@@ -36,7 +36,7 @@ export default function CategoriesScreen() {
               <Text style={styles.cardSpent}>
                 {spentByCat[c.id] ? `$${fmtARS(spentByCat[c.id])}` : '—'}
               </Text>
-            </View>
+            </Pressable>
           ))}
 
           <Pressable onPress={() => router.push('/add-category')} style={styles.addCard}>
