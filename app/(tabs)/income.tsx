@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Switch, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Switch, Pressable, ScrollView, KeyboardAvoidingView, Platform, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -90,13 +90,13 @@ export default function IncomeScreen() {
 
   return (
     <LinearGradient colors={['#1B1726', '#0F0D15']} style={styles.flex}>
-      <View style={[styles.flex, { paddingTop: insets.top }]}>
+      <KeyboardAvoidingView style={[styles.flex, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.header}>
           <Text style={styles.title}>Ingresos</Text>
           <Text style={styles.subtitle}>Las fuentes activas se acreditan solas el 1ro de cada mes.</Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* Monthly total */}
           <View style={styles.totalCard}>
             <View>
@@ -156,7 +156,7 @@ export default function IncomeScreen() {
             </Pressable>
           </View>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 }

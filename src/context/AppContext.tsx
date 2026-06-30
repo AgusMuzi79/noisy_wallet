@@ -64,7 +64,7 @@ interface AppContextValue {
 // ── DB row mappers ────────────────────────────────────────────────────────────
 
 function rowToCategory(row: any): Category {
-  return { id: row.id, name: row.name, icon: row.icon, color: row.color ?? '#8B83A6' };
+  return { id: row.id, name: row.name, icon: row.icon ?? 'credit-card', color: row.color ?? '#8B83A6' };
 }
 
 function rowToMovement(row: any): Movement {

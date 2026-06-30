@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -43,7 +43,8 @@ export default function AddCategoryScreen() {
         <Text style={styles.screenTitle}>nueva categoría</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* Preview */}
         <View style={styles.preview}>
           <View style={[styles.previewIcon, { backgroundColor: hexAlpha(color, 0.16) }]}>
@@ -99,6 +100,7 @@ export default function AddCategoryScreen() {
           <Text style={styles.saveBtnText}>{saving ? 'Guardando…' : 'Guardar categoría'}</Text>
         </Pressable>
       </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 }

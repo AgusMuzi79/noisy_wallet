@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -26,7 +26,7 @@ export default function CategoriesScreen() {
           <Text style={styles.subtitle}>Tocá una para editarla, o creá las tuyas.</Text>
         </View>
 
-        <View style={styles.grid}>
+        <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
           {state.categories.map(c => (
             <View key={c.id} style={styles.card}>
               <View style={[styles.cardIcon, { backgroundColor: hexAlpha(c.color, 0.15) }]}>
@@ -45,7 +45,7 @@ export default function CategoriesScreen() {
             </View>
             <Text style={styles.addText}>Nueva categoría</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </View>
     </LinearGradient>
   );
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 22, marginTop: 8, marginBottom: 20 },
   title: { fontFamily: F.display, fontSize: 26, color: C.text },
   subtitle: { fontFamily: F.sans, fontSize: 13, color: C.textMuted, marginTop: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 22, gap: 11 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 22, gap: 11, paddingBottom: 110 },
   card: { width: '47%', padding: 15, borderRadius: 16, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border },
   cardIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginBottom: 11 },
   cardName: { fontFamily: F.sansSemibold, fontSize: 14.5, color: C.text },
