@@ -6,7 +6,8 @@
 CREATE TABLE IF NOT EXISTS categories (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        TEXT NOT NULL,
-  icon        TEXT NOT NULL DEFAULT '📦',
+  icon        TEXT NOT NULL DEFAULT 'credit-card',  -- Feather icon name
+  color       TEXT NOT NULL DEFAULT '#8B83A6',
   is_default  BOOLEAN NOT NULL DEFAULT false,
   active      BOOLEAN NOT NULL DEFAULT true,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -28,7 +29,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   type                 TEXT NOT NULL CHECK (type IN ('expense', 'income', 'recurring_credit')),
   amount               NUMERIC(12,2) NOT NULL CHECK (amount > 0),
   category_id          UUID REFERENCES categories(id) ON DELETE SET NULL,
-  author               TEXT CHECK (author IN ('agus', 'novia')),
+  author               TEXT,
   note                 TEXT,
   date                 DATE NOT NULL DEFAULT CURRENT_DATE,
   recurring_source_id  UUID REFERENCES recurring_sources(id) ON DELETE SET NULL,
@@ -98,19 +99,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE categories;
 ALTER PUBLICATION supabase_realtime ADD TABLE settings;
 
 -- ============================================================
--- Default categories (Spanish)
+-- Default categories (Feather icon names + hex colors)
 -- ============================================================
-INSERT INTO categories (name, icon, is_default) VALUES
-  ('Supermercado',    '🛒', true),
-  ('Restaurante',     '🍽️', true),
-  ('Transporte',      '🚗', true),
-  ('Salud',           '💊', true),
-  ('Ropa',            '👕', true),
-  ('Entretenimiento', '🎬', true),
-  ('Servicios',       '💡', true),
-  ('Alquiler',        '🏠', true),
-  ('Mascotas',        '🐾', true),
-  ('Otros',           '📦', true)
+INSERT INTO categories (name, icon, color, is_default) VALUES
+  ('Supermercado', 'shopping-cart', '#2BA597', true),
+  ('Hogar',        'home',          '#9B7CF0', true),
+  ('Servicios',    'zap',           '#E0A52E', true),
+  ('Delivery',     'truck',         '#E5604A', true),
+  ('Transporte',   'navigation',    '#9FE870', true),
+  ('Salud',        'heart',         '#C3B0F7', true),
+  ('Ocio',         'tag',           '#F5D020', true),
+  ('Otros',        'credit-card',   '#8B83A6', true)
 ON CONFLICT DO NOTHING;
 
 -- Initial settings row

@@ -7,9 +7,11 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp, Movement } from '../../src/context/AppContext';
-import { C, F, fmtARS, hexAlpha } from '../../src/theme';
+import { C, F, fmtARS, fmtMovDate, hexAlpha } from '../../src/theme';
 
-const MONTH = 'Junio 2026';
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const now = new Date();
+const MONTH = `${MONTHS_ES[now.getMonth()]} ${now.getFullYear()}`;
 
 function useBlinkCursor() {
   const [visible, setVisible] = useState(true);
@@ -20,9 +22,9 @@ function useBlinkCursor() {
   return visible;
 }
 
-function MovRow({ m, categories }: { m: any; categories: any[] }) {
-  const cat = categories.find(c => c.key === m.catKey);
-  let title = '', icon = 'credit-card', color = C.textMuted, amtColor = C.danger, sign = '−';
+function MovRow({ m, categories }: { m: Movement; categories: any[] }) {
+  const cat = categories.find(c => c.id === m.catId);
+  let title = '', icon = 'credit-card', color: string = C.textMuted, amtColor: string = C.danger, sign = '−';
   if (m.type === 'recurring_credit') {
     title = 'Acreditación mensual'; icon = 'trending-up'; color = C.primary; amtColor = C.accent; sign = '+';
   } else if (m.type === 'income') {
@@ -31,7 +33,8 @@ function MovRow({ m, categories }: { m: any; categories: any[] }) {
     title = cat?.name ?? 'Otros'; icon = cat?.icon ?? 'credit-card'; color = cat?.color ?? C.textMuted; amtColor = C.danger; sign = '−';
   }
   const who = m.author ? `${m.author} · ` : '';
-  const sub = m.note && m.type !== 'income' ? `${who}${m.note} · ${m.date}` : `${who}${m.date}`;
+  const dateLabel = fmtMovDate(m.date);
+  const sub = m.note && m.type !== 'income' ? `${who}${m.note} · ${dateLabel}` : `${who}${dateLabel}`;
   return (
     <View style={styles.row}>
       <View style={[styles.rowIcon, { backgroundColor: hexAlpha(color, 0.15) }]}>
@@ -47,7 +50,7 @@ function MovRow({ m, categories }: { m: any; categories: any[] }) {
 }
 
 export default function HomeScreen() {
-  const { state, dispatch } = useApp();
+  const { state } = useApp();
   const insets = useSafeAreaInsets();
   const cursor = useBlinkCursor();
 
@@ -98,15 +101,13 @@ export default function HomeScreen() {
   const ratioPct = Math.round(ratioClamped * 100);
   const gaugeColor = ratio > 0.5 ? C.accent : ratio > 0.22 ? C.primary : C.danger;
 
-  const isLab = state.style === 'lab';
-
   return (
     <LinearGradient colors={['#1B1726', '#0F0D15']} style={styles.flex}>
       <View style={[styles.flex, { paddingTop: insets.top }]}>
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.kicker}>// billetera compartida</Text>
+            <Text style={styles.kicker}>NoisyWallet</Text>
             <Text style={styles.month}>{MONTH}</Text>
           </View>
           <Pressable onPress={() => router.push('/settings')} style={styles.iconBtn}>
@@ -115,75 +116,35 @@ export default function HomeScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* Style toggle */}
-          <View style={styles.styleRow}>
-            <View style={styles.stylePills}>
-              {(['lab', 'calm'] as const).map(s => (
-                <Pressable
-                  key={s}
-                  onPress={() => dispatch({ type: 'SET_STYLE', style: s })}
-                  style={[styles.pill, state.style === s && styles.pillActive]}
-                >
-                  <Text style={[styles.pillText, state.style === s && styles.pillTextActive]}>
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
           {/* Balance hero */}
           <View style={styles.heroContainer}>
-            {isLab ? (
-              /* LAB: mono number + segmented gauge */
-              <View>
-                <Text style={styles.labKicker}>saldo disponible</Text>
-                <View style={styles.labBalRow}>
-                  <Text style={[styles.labCurrency, { color: gaugeColor }]}>$</Text>
-                  <Text style={[styles.labBalance, { color: gaugeColor }]}>
-                    {fmtARS(displayBal)}
-                  </Text>
-                  {cursor && <Text style={[styles.labCursor, { color: C.accent }]}>_</Text>}
-                </View>
-                <Text style={styles.incomeHint}>de ${fmtARS(monthIncome)} de ingresos este mes</Text>
-                <View style={styles.gaugeHeader}>
-                  <Text style={styles.gaugeLabel}>saldo restante</Text>
-                  <Text style={[styles.gaugePct, { color: gaugeColor }]}>{ratioPct}%</Text>
-                </View>
-                <View style={styles.segments}>
-                  {Array.from({ length: 24 }).map((_, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.seg,
-                        { backgroundColor: i < ratioClamped * 24 ? gaugeColor : C.surface2 },
-                      ]}
-                    />
-                  ))}
-                </View>
+            <View>
+              <Text style={styles.labKicker}>saldo disponible</Text>
+              <View style={styles.labBalRow}>
+                <Text style={[styles.labCurrency, { color: gaugeColor }]}>$</Text>
+                <Text style={[styles.labBalance, { color: gaugeColor }]}>
+                  {fmtARS(displayBal)}
+                </Text>
+                {cursor && <Text style={[styles.labCursor, { color: C.accent }]}>_</Text>}
               </View>
-            ) : (
-              /* CALM: serif number + smooth progress bar */
-              <View>
-                <Text style={styles.calmLabel}>Saldo disponible</Text>
-                <View style={styles.calmBalRow}>
-                  <Text style={[styles.calmCurrency, { color: gaugeColor }]}>$</Text>
-                  <Text style={[styles.calmBalance, { color: gaugeColor }]}>
-                    {fmtARS(displayBal)}
-                  </Text>
-                </View>
-                <Text style={styles.calmIncomeHint}>de ${fmtARS(monthIncome)} de ingresos este mes</Text>
-                <View style={styles.calmGaugeHeader}>
-                  <Text style={styles.calmGaugeLabel}>Saldo restante</Text>
-                  <Text style={[styles.calmGaugePct, { color: gaugeColor }]}>{ratioPct}%</Text>
-                </View>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${ratioPct}%` as any, backgroundColor: gaugeColor }]} />
-                </View>
+              <Text style={styles.incomeHint}>de ${fmtARS(monthIncome)} de ingresos este mes</Text>
+              <View style={styles.gaugeHeader}>
+                <Text style={styles.gaugeLabel}>saldo restante</Text>
+                <Text style={[styles.gaugePct, { color: gaugeColor }]}>{ratioPct}%</Text>
               </View>
-            )}
+              <View style={styles.segments}>
+                {Array.from({ length: 24 }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.seg,
+                      { backgroundColor: i < ratioClamped * 24 ? gaugeColor : C.surface2 },
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
 
-            {/* Flash animation */}
             {flash && (
               <Animated.View style={[styles.flash, { opacity: flashOpacity, transform: [{ translateY: flashY }] }]}>
                 <Text style={[styles.flashText, { color: flash.color }]}>{flash.text}</Text>
@@ -242,7 +203,6 @@ const styles = StyleSheet.create({
   flash: { position: 'absolute', top: 30, right: 0 },
   flashText: { fontFamily: F.mono, fontSize: 18, fontWeight: '700' },
 
-  // LAB
   labKicker: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle, marginBottom: 6 },
   labBalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
   labCurrency: { fontFamily: F.mono, fontSize: 26, fontWeight: '700' },
@@ -255,7 +215,6 @@ const styles = StyleSheet.create({
   segments: { flexDirection: 'row', gap: 3, height: 14 },
   seg: { flex: 1, borderRadius: 2 },
 
-  // CALM
   calmLabel: { fontFamily: F.sansSemibold, fontSize: 13, letterSpacing: 0.4, color: C.textMuted, marginBottom: 4 },
   calmBalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
   calmCurrency: { fontFamily: F.display, fontSize: 34 },
@@ -267,14 +226,12 @@ const styles = StyleSheet.create({
   progressTrack: { height: 12, borderRadius: 999, backgroundColor: C.surface2, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 999 },
 
-  // Reminder
   reminderCard: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 15, paddingHorizontal: 16, borderRadius: 16, backgroundColor: C.accentSoft, borderWidth: 1.5, borderColor: 'rgba(159,232,112,0.28)', marginBottom: 24 },
   reminderIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(159,232,112,0.16)', alignItems: 'center', justifyContent: 'center' },
   reminderText: { flex: 1 },
   reminderTitle: { fontFamily: F.sansSemibold, fontSize: 14, color: C.text },
   reminderSub: { fontFamily: F.sans, fontSize: 12.5, color: C.textMuted },
 
-  // Movements
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionKicker: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.textSubtle },
   seeAll: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1, color: C.primary },

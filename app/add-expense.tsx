@@ -9,15 +9,14 @@ import { useApp } from '../src/context/AppContext';
 import { C, F, fmtARS, hexAlpha } from '../src/theme';
 
 const KEYPAD = ['1','2','3','4','5','6','7','8','9','000','0','del'];
-const AUTHORS = ['Agus', 'Juli'];
-
 export default function AddExpenseScreen() {
-  const { state, dispatch } = useApp();
+  const { state, addMovement } = useApp();
   const insets = useSafeAreaInsets();
   const [amountRaw, setAmountRaw] = useState('');
-  const [selCat, setSelCat] = useState<string | null>(null);
-  const [author, setAuthor] = useState(AUTHORS[0]);
+  const [selCat, setSelCat] = useState<string | null>(null);  // category UUID
+  const [author, setAuthor] = useState(state.user1Name);
   const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const press = (k: string) => {
     setAmountRaw(prev => {
@@ -29,21 +28,18 @@ export default function AddExpenseScreen() {
   };
 
   const amtVal = parseInt(amountRaw || '0', 10);
-  const canConfirm = amtVal > 0 && selCat !== null;
+  const canConfirm = amtVal > 0 && selCat !== null && !saving;
 
-  const confirm = () => {
+  const confirm = async () => {
     if (!canConfirm) return;
-    dispatch({
-      type: 'ADD_MOVEMENT',
-      payload: {
-        id: String(Date.now()),
-        type: 'expense',
-        catKey: selCat!,
-        amount: amtVal,
-        author,
-        date: 'Hoy',
-        note: note.trim(),
-      },
+    setSaving(true);
+    await addMovement({
+      type: 'expense',
+      catId: selCat!,
+      amount: amtVal,
+      author,
+      date: new Date().toISOString().slice(0, 10),
+      note: note.trim(),
     });
     router.back();
   };
@@ -71,11 +67,11 @@ export default function AddExpenseScreen() {
         <Text style={styles.fieldLabel}>categoría</Text>
         <View style={styles.chips}>
           {state.categories.map(c => {
-            const on = selCat === c.key;
+            const on = selCat === c.id;
             return (
               <Pressable
-                key={c.key}
-                onPress={() => setSelCat(c.key)}
+                key={c.id}
+                onPress={() => setSelCat(c.id)}
                 style={[styles.chip, on && { backgroundColor: hexAlpha(c.color, 0.18), borderColor: c.color }]}
               >
                 <Feather name={c.icon as any} size={17} color={on ? c.color : C.textMuted} />
@@ -88,7 +84,7 @@ export default function AddExpenseScreen() {
         {/* Author */}
         <Text style={[styles.fieldLabel, { marginTop: 20 }]}>quién</Text>
         <View style={styles.authorRow}>
-          {AUTHORS.map(a => (
+          {[state.user1Name, state.user2Name].map(a => (
             <Pressable
               key={a}
               onPress={() => setAuthor(a)}
@@ -127,7 +123,7 @@ export default function AddExpenseScreen() {
           disabled={!canConfirm}
         >
           <Text style={styles.confirmText}>
-            {canConfirm ? `Confirmar −$${fmtARS(amtVal)}` : 'Cargar gasto'}
+            {saving ? 'Guardando…' : canConfirm ? `Confirmar −$${fmtARS(amtVal)}` : 'Cargar gasto'}
           </Text>
         </Pressable>
       </View>

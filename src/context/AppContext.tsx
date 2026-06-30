@@ -1,11 +1,16 @@
-import React, { createContext, useContext, useReducer } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../lib/supabase';
+import { requestNotifPermissions, scheduleDailyReminder, cancelDailyReminder } from '../lib/notifications';
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 export type TxType = 'expense' | 'income' | 'recurring_credit';
 
 export interface Category {
-  key: string;
+  id: string;
   name: string;
-  icon: string; // Feather icon name
+  icon: string;  // Feather icon name
   color: string;
 }
 
@@ -19,10 +24,10 @@ export interface RecurringSource {
 export interface Movement {
   id: string;
   type: TxType;
-  catKey?: string;
+  catId?: string;  // category UUID
   amount: number;
   author: string | null;
-  date: string;
+  date: string;    // ISO date YYYY-MM-DD
   note: string;
 }
 
@@ -36,107 +41,310 @@ interface AppState {
   notifHour: number;
   lockPin: boolean;
   bio: boolean;
-}
-
-type Action =
-  | { type: 'ADD_MOVEMENT'; payload: Movement }
-  | { type: 'DELETE_MOVEMENT'; id: string }
-  | { type: 'ADD_SOURCE'; payload: RecurringSource }
-  | { type: 'UPDATE_SOURCE'; id: string; patch: Partial<RecurringSource> }
-  | { type: 'REMOVE_SOURCE'; id: string }
-  | { type: 'ADD_CATEGORY'; payload: Category }
-  | { type: 'SET_STYLE'; style: 'lab' | 'calm' }
-  | { type: 'SET_SETTINGS'; patch: Partial<AppState> };
-
-const DEFAULT_CATEGORIES: Category[] = [
-  { key: 'super', name: 'Supermercado', icon: 'shopping-cart', color: '#2BA597' },
-  { key: 'hogar', name: 'Hogar', icon: 'home', color: '#9B7CF0' },
-  { key: 'serv', name: 'Servicios', icon: 'zap', color: '#E0A52E' },
-  { key: 'deli', name: 'Delivery', icon: 'truck', color: '#E5604A' },
-  { key: 'trans', name: 'Transporte', icon: 'navigation', color: '#9FE870' },
-  { key: 'salud', name: 'Salud', icon: 'heart', color: '#C3B0F7' },
-  { key: 'ocio', name: 'Ocio', icon: 'tag', color: '#F5D020' },
-  { key: 'otros', name: 'Otros', icon: 'credit-card', color: '#8B83A6' },
-];
-
-const DEFAULT_SOURCES: RecurringSource[] = [
-  { id: 's1', name: 'App del club', amount: 520000, active: true },
-  { id: 's2', name: 'Alquiler Belgrano', amount: 310000, active: true },
-  { id: 's3', name: 'Alquiler Caballito', amount: 270000, active: true },
-];
-
-const DEFAULT_MOVEMENTS: Movement[] = [
-  { id: '1', type: 'expense', catKey: 'deli', amount: 18400, author: 'Agus', date: 'Hoy', note: 'Pedidos Ya' },
-  { id: '2', type: 'expense', catKey: 'super', amount: 32750, author: 'Agus', date: 'Ayer', note: 'Coto' },
-  { id: '3', type: 'expense', catKey: 'trans', amount: 9600, author: 'Juli', date: 'Ayer', note: 'SUBE' },
-  { id: '4', type: 'income', amount: 85000, author: 'Agus', date: '2 jun', note: 'Venta usados' },
-  { id: '5', type: 'expense', catKey: 'serv', amount: 64200, author: 'Juli', date: '2 jun', note: 'Edenor' },
-  { id: '6', type: 'expense', catKey: 'salud', amount: 24300, author: 'Juli', date: '1 jun', note: 'Farmacia' },
-  { id: '7', type: 'recurring_credit', amount: 1100000, author: null, date: '1 jun', note: 'Acreditación mensual' },
-];
-
-const INITIAL: AppState = {
-  balance: 842300,
-  movements: DEFAULT_MOVEMENTS,
-  sources: DEFAULT_SOURCES,
-  categories: DEFAULT_CATEGORIES,
-  style: 'lab',
-  notifEnabled: true,
-  notifHour: 21,
-  lockPin: true,
-  bio: true,
-};
-
-function reducer(state: AppState, action: Action): AppState {
-  switch (action.type) {
-    case 'ADD_MOVEMENT': {
-      const delta = action.payload.type === 'expense' ? -action.payload.amount : action.payload.amount;
-      return {
-        ...state,
-        balance: state.balance + delta,
-        movements: [action.payload, ...state.movements],
-      };
-    }
-    case 'DELETE_MOVEMENT': {
-      const mv = state.movements.find(m => m.id === action.id);
-      if (!mv) return state;
-      const delta = mv.type === 'expense' ? mv.amount : -mv.amount;
-      return {
-        ...state,
-        balance: state.balance + delta,
-        movements: state.movements.filter(m => m.id !== action.id),
-      };
-    }
-    case 'ADD_SOURCE':
-      return { ...state, sources: [...state.sources, action.payload] };
-    case 'UPDATE_SOURCE':
-      return {
-        ...state,
-        sources: state.sources.map(s => s.id === action.id ? { ...s, ...action.patch } : s),
-      };
-    case 'REMOVE_SOURCE':
-      return { ...state, sources: state.sources.filter(s => s.id !== action.id) };
-    case 'ADD_CATEGORY':
-      return { ...state, categories: [...state.categories, action.payload] };
-    case 'SET_STYLE':
-      return { ...state, style: action.style };
-    case 'SET_SETTINGS':
-      return { ...state, ...action.patch };
-    default:
-      return state;
-  }
+  user1Name: string;
+  user2Name: string;
 }
 
 interface AppContextValue {
   state: AppState;
-  dispatch: React.Dispatch<Action>;
+  loading: boolean;
+  addMovement(mv: Omit<Movement, 'id'>): Promise<void>;
+  deleteMovement(id: string): Promise<void>;
+  addSource(s: Omit<RecurringSource, 'id'>): Promise<void>;
+  updateSource(id: string, patch: Partial<Omit<RecurringSource, 'id'>>): Promise<void>;
+  removeSource(id: string): Promise<void>;
+  addCategory(c: Omit<Category, 'id'>): Promise<void>;
+  setStyle(style: 'lab' | 'calm'): void;
+  saveSettings(patch: { notifEnabled?: boolean; notifHour?: number; lockPin?: boolean }): Promise<void>;
+  setBio(bio: boolean): void;
+  setUserNames(user1: string, user2: string): void;
 }
+
+// ── DB row mappers ────────────────────────────────────────────────────────────
+
+function rowToCategory(row: any): Category {
+  return { id: row.id, name: row.name, icon: row.icon, color: row.color ?? '#8B83A6' };
+}
+
+function rowToMovement(row: any): Movement {
+  return {
+    id: row.id,
+    type: row.type as TxType,
+    catId: row.category_id ?? undefined,
+    amount: Number(row.amount),
+    author: row.author ?? null,
+    note: row.note ?? '',
+    date: row.date,
+  };
+}
+
+function rowToSource(row: any): RecurringSource {
+  return { id: row.id, name: row.name, amount: Number(row.amount), active: row.active };
+}
+
+function computeBalance(initial: number, movements: Movement[]): number {
+  return movements.reduce(
+    (acc, m) => (m.type === 'expense' ? acc - m.amount : acc + m.amount),
+    initial,
+  );
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const STYLE_KEY = '@billetera:style';
+const BIO_KEY = '@billetera:bio';
+const USER1_KEY = '@billetera:user1';
+const USER2_KEY = '@billetera:user2';
+
+const DEFAULT_STATE: AppState = {
+  balance: 0,
+  movements: [],
+  sources: [],
+  categories: [],
+  style: 'lab',
+  notifEnabled: true,
+  notifHour: 21,
+  lockPin: false,
+  bio: false,
+  user1Name: '',
+  user2Name: '',
+};
+
+// ── Context ───────────────────────────────────────────────────────────────────
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, INITIAL);
-  return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
+  const [state, setState] = useState<AppState>(DEFAULT_STATE);
+  const [loading, setLoading] = useState(true);
+  const initialBalanceRef = useRef(0);
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+
+  // ── Refetch helpers ──────────────────────────────────────────────────────────
+
+  const refetchTransactions = useCallback(async () => {
+    const { data } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (!data) return;
+    const movements = data.map(rowToMovement);
+    setState(s => ({ ...s, movements, balance: computeBalance(initialBalanceRef.current, movements) }));
+  }, []);
+
+  const refetchCategories = useCallback(async () => {
+    const { data } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('active', true)
+      .order('created_at');
+    if (data) setState(s => ({ ...s, categories: data.map(rowToCategory) }));
+  }, []);
+
+  const refetchSources = useCallback(async () => {
+    const { data } = await supabase.from('recurring_sources').select('*').order('created_at');
+    if (data) setState(s => ({ ...s, sources: data.map(rowToSource) }));
+  }, []);
+
+  const refetchSettings = useCallback(async () => {
+    const { data } = await supabase.from('settings').select('*').eq('id', 1).single();
+    if (!data) return;
+    const initBal = Number(data.initial_balance);
+    initialBalanceRef.current = initBal;
+    setState(s => ({
+      ...s,
+      notifEnabled: data.notification_enabled,
+      notifHour: data.notification_hour,
+      lockPin: data.lock_enabled,
+      balance: computeBalance(initBal, s.movements),
+    }));
+  }, []);
+
+  // ── Initial load ─────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function load() {
+      const [
+        { data: cats },
+        { data: srcs },
+        { data: txs },
+        { data: settings },
+        storedStyle,
+        storedBio,
+        storedUser1,
+        storedUser2,
+      ] = await Promise.all([
+        supabase.from('categories').select('*').eq('active', true).order('created_at'),
+        supabase.from('recurring_sources').select('*').order('created_at'),
+        supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase.from('settings').select('*').eq('id', 1).single(),
+        AsyncStorage.getItem(STYLE_KEY),
+        AsyncStorage.getItem(BIO_KEY),
+        AsyncStorage.getItem(USER1_KEY),
+        AsyncStorage.getItem(USER2_KEY),
+      ]);
+
+      if (!mounted) return;
+
+      const categories = (cats ?? []).map(rowToCategory);
+      const movements = (txs ?? []).map(rowToMovement);
+      const sources = (srcs ?? []).map(rowToSource);
+      const initBal = settings ? Number(settings.initial_balance) : 0;
+      initialBalanceRef.current = initBal;
+
+      setState({
+        categories,
+        movements,
+        sources,
+        balance: computeBalance(initBal, movements),
+        style: (storedStyle as 'lab' | 'calm') ?? 'lab',
+        notifEnabled: settings?.notification_enabled ?? true,
+        notifHour: settings?.notification_hour ?? 21,
+        lockPin: settings?.lock_enabled ?? false,
+        bio: storedBio === 'true',
+        user1Name: storedUser1 ?? '',
+        user2Name: storedUser2 ?? '',
+      });
+      setLoading(false);
+    }
+
+    load();
+    return () => { mounted = false; };
+  }, []);
+
+  // ── Realtime (cross-device sync) ──────────────────────────────────────────────
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('billetera-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, refetchTransactions)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, refetchCategories)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_sources' }, refetchSources)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, refetchSettings)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [refetchTransactions, refetchCategories, refetchSources, refetchSettings]);
+
+  // ── Notification scheduling (runs once after initial load) ───────────────────
+
+  useEffect(() => {
+    if (loading) return;
+    if (state.notifEnabled) {
+      requestNotifPermissions().then(granted => {
+        if (granted) scheduleDailyReminder(state.notifHour);
+      });
+    } else {
+      cancelDailyReminder();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
+  const addMovement = useCallback(async (mv: Omit<Movement, 'id'>) => {
+    await supabase.from('transactions').insert({
+      type: mv.type,
+      amount: mv.amount,
+      category_id: mv.catId ?? null,
+      author: mv.author,
+      note: mv.note || null,
+      date: mv.date,
+    });
+    await refetchTransactions();
+  }, [refetchTransactions]);
+
+  const deleteMovement = useCallback(async (id: string) => {
+    await supabase.from('transactions').delete().eq('id', id);
+    await refetchTransactions();
+  }, [refetchTransactions]);
+
+  const addSource = useCallback(async (s: Omit<RecurringSource, 'id'>) => {
+    await supabase.from('recurring_sources').insert({ name: s.name, amount: s.amount, active: s.active });
+    await refetchSources();
+  }, [refetchSources]);
+
+  const updateSource = useCallback(async (id: string, patch: Partial<Omit<RecurringSource, 'id'>>) => {
+    await supabase.from('recurring_sources').update(patch).eq('id', id);
+    // Realtime syncs it; no immediate refetch to avoid interrupting mid-edit
+  }, []);
+
+  const removeSource = useCallback(async (id: string) => {
+    await supabase.from('recurring_sources').delete().eq('id', id);
+    await refetchSources();
+  }, [refetchSources]);
+
+  const addCategory = useCallback(async (c: Omit<Category, 'id'>) => {
+    await supabase.from('categories').insert({ name: c.name, icon: c.icon, color: c.color });
+    await refetchCategories();
+  }, [refetchCategories]);
+
+  const setStyle = useCallback((style: 'lab' | 'calm') => {
+    setState(s => ({ ...s, style }));
+    AsyncStorage.setItem(STYLE_KEY, style);
+  }, []);
+
+  const saveSettings = useCallback(async (patch: { notifEnabled?: boolean; notifHour?: number; lockPin?: boolean }) => {
+    // Optimistic local update
+    setState(s => ({
+      ...s,
+      ...(patch.notifEnabled !== undefined && { notifEnabled: patch.notifEnabled }),
+      ...(patch.notifHour !== undefined && { notifHour: patch.notifHour }),
+      ...(patch.lockPin !== undefined && { lockPin: patch.lockPin }),
+    }));
+    const dbPatch: Record<string, any> = {};
+    if (patch.notifEnabled !== undefined) dbPatch.notification_enabled = patch.notifEnabled;
+    if (patch.notifHour !== undefined) dbPatch.notification_hour = patch.notifHour;
+    if (patch.lockPin !== undefined) dbPatch.lock_enabled = patch.lockPin;
+    if (Object.keys(dbPatch).length) {
+      await supabase.from('settings').update(dbPatch).eq('id', 1);
+    }
+
+    if (patch.notifEnabled !== undefined || patch.notifHour !== undefined) {
+      const enabled = patch.notifEnabled !== undefined ? patch.notifEnabled : stateRef.current.notifEnabled;
+      const hour = patch.notifHour !== undefined ? patch.notifHour : stateRef.current.notifHour;
+      if (enabled) {
+        const granted = await requestNotifPermissions();
+        if (granted) await scheduleDailyReminder(hour);
+      } else {
+        await cancelDailyReminder();
+      }
+    }
+  }, []);
+
+  const setBio = useCallback((bio: boolean) => {
+    setState(s => ({ ...s, bio }));
+    AsyncStorage.setItem(BIO_KEY, String(bio));
+  }, []);
+
+  const setUserNames = useCallback((user1: string, user2: string) => {
+    setState(s => ({ ...s, user1Name: user1, user2Name: user2 }));
+    AsyncStorage.setItem(USER1_KEY, user1);
+    AsyncStorage.setItem(USER2_KEY, user2);
+  }, []);
+
+  return (
+    <AppContext.Provider value={{
+      state, loading,
+      addMovement, deleteMovement,
+      addSource, updateSource, removeSource,
+      addCategory,
+      setStyle,
+      saveSettings,
+      setBio,
+      setUserNames,
+    }}>
+      {children}
+    </AppContext.Provider>
+  );
 }
 
 export function useApp() {

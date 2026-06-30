@@ -18,20 +18,19 @@ const PALETTE = [
 ];
 
 export default function AddCategoryScreen() {
-  const { dispatch } = useApp();
+  const { addCategory } = useApp();
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
-  const [icon, setIcon] = useState(ICONS[0]);
+  const [icon, setIcon] = useState<string>(ICONS[0]);
   const [color, setColor] = useState(PALETTE[0]);
+  const [saving, setSaving] = useState(false);
 
-  const canSave = name.trim().length > 0;
+  const canSave = name.trim().length > 0 && !saving;
 
-  const save = () => {
+  const save = async () => {
     if (!canSave) return;
-    dispatch({
-      type: 'ADD_CATEGORY',
-      payload: { key: `c${Date.now()}`, name: name.trim(), icon, color },
-    });
+    setSaving(true);
+    await addCategory({ name: name.trim(), icon, color });
     router.back();
   };
 
@@ -97,7 +96,7 @@ export default function AddCategoryScreen() {
         </View>
 
         <Pressable onPress={save} style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]} disabled={!canSave}>
-          <Text style={styles.saveBtnText}>Guardar categoría</Text>
+          <Text style={styles.saveBtnText}>{saving ? 'Guardando…' : 'Guardar categoría'}</Text>
         </Pressable>
       </ScrollView>
     </LinearGradient>

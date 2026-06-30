@@ -1,13 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Switch, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '../../src/context/AppContext';
+import { useApp, RecurringSource } from '../../src/context/AppContext';
 import { C, F, fmtARS } from '../../src/theme';
 
+// ── Source card with local edit state ────────────────────────────────────────
+
+function SourceCard({
+  source,
+  onUpdate,
+  onRemove,
+}: {
+  source: RecurringSource;
+  onUpdate: (id: string, patch: Partial<Omit<RecurringSource, 'id'>>) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
+}) {
+  const [name, setName] = useState(source.name);
+  const [amtRaw, setAmtRaw] = useState(String(source.amount));
+
+  // Keep in sync when Realtime updates arrive
+  useEffect(() => { setName(source.name); }, [source.name]);
+  useEffect(() => { setAmtRaw(String(source.amount)); }, [source.amount]);
+
+  return (
+    <View style={[styles.sourceCard, !source.active && styles.sourceInactive]}>
+      <View style={styles.sourceNameRow}>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          onEndEditing={() => onUpdate(source.id, { name })}
+          style={styles.sourceName}
+          placeholderTextColor={C.textMuted}
+        />
+        <Pressable onPress={() => onRemove(source.id)} style={styles.trashBtn}>
+          <Feather name="trash-2" size={15} color={C.textSubtle} />
+        </Pressable>
+      </View>
+      <View style={styles.sourceAmtRow}>
+        <View style={styles.sourceAmtInput}>
+          <Text style={styles.sourceAmtSign}>$</Text>
+          <TextInput
+            value={amtRaw}
+            onChangeText={v => setAmtRaw(v.replace(/\D/g, ''))}
+            onEndEditing={() => onUpdate(source.id, { amount: parseInt(amtRaw || '0', 10) })}
+            keyboardType="numeric"
+            style={styles.sourceAmtText}
+          />
+        </View>
+        <Switch
+          value={source.active}
+          onValueChange={v => onUpdate(source.id, { active: v })}
+          trackColor={{ false: C.surface2, true: C.primary }}
+          thumbColor={C.text}
+        />
+      </View>
+    </View>
+  );
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
+
 export default function IncomeScreen() {
-  const { state, dispatch } = useApp();
+  const { state, addMovement, addSource, updateSource, removeSource } = useApp();
   const insets = useSafeAreaInsets();
   const [extraRaw, setExtraRaw] = useState('');
   const [extraNote, setExtraNote] = useState('');
@@ -15,18 +71,14 @@ export default function IncomeScreen() {
   const monthIncome = state.sources.filter(s => s.active).reduce((a, s) => a + s.amount, 0);
   const extraVal = parseInt(extraRaw || '0', 10);
 
-  const addExtra = () => {
+  const addExtra = async () => {
     if (!extraVal) return;
-    dispatch({
-      type: 'ADD_MOVEMENT',
-      payload: {
-        id: String(Date.now()),
-        type: 'income',
-        amount: extraVal,
-        author: 'Agus',
-        date: 'Hoy',
-        note: extraNote.trim() || 'Ingreso extra',
-      },
+    await addMovement({
+      type: 'income',
+      amount: extraVal,
+      author: 'Agus',
+      date: new Date().toISOString().slice(0, 10),
+      note: extraNote.trim() || 'Ingreso extra',
     });
     setExtraRaw('');
     setExtraNote('');
@@ -54,46 +106,17 @@ export default function IncomeScreen() {
           <Text style={styles.sectionKicker}>fuentes recurrentes</Text>
           <View style={styles.sourcesList}>
             {state.sources.map(s => (
-              <View key={s.id} style={[styles.sourceCard, !s.active && styles.sourceInactive]}>
-                <View style={styles.sourceNameRow}>
-                  <TextInput
-                    value={s.name}
-                    onChangeText={v => dispatch({ type: 'UPDATE_SOURCE', id: s.id, patch: { name: v } })}
-                    style={styles.sourceName}
-                    placeholderTextColor={C.textMuted}
-                  />
-                  <Pressable
-                    onPress={() => dispatch({ type: 'REMOVE_SOURCE', id: s.id })}
-                    style={styles.trashBtn}
-                  >
-                    <Feather name="trash-2" size={15} color={C.textSubtle} />
-                  </Pressable>
-                </View>
-                <View style={styles.sourceAmtRow}>
-                  <View style={styles.sourceAmtInput}>
-                    <Text style={styles.sourceAmtSign}>$</Text>
-                    <TextInput
-                      value={String(s.amount)}
-                      onChangeText={v =>
-                        dispatch({ type: 'UPDATE_SOURCE', id: s.id, patch: { amount: parseInt(v.replace(/\D/g, '') || '0', 10) } })
-                      }
-                      keyboardType="numeric"
-                      style={styles.sourceAmtText}
-                    />
-                  </View>
-                  <Switch
-                    value={s.active}
-                    onValueChange={v => dispatch({ type: 'UPDATE_SOURCE', id: s.id, patch: { active: v } })}
-                    trackColor={{ false: C.surface2, true: C.primary }}
-                    thumbColor={C.text}
-                  />
-                </View>
-              </View>
+              <SourceCard
+                key={s.id}
+                source={s}
+                onUpdate={updateSource}
+                onRemove={removeSource}
+              />
             ))}
           </View>
 
           <Pressable
-            onPress={() => dispatch({ type: 'ADD_SOURCE', payload: { id: String(Date.now()), name: 'Nueva fuente', amount: 0, active: true } })}
+            onPress={() => addSource({ name: 'Nueva fuente', amount: 0, active: true })}
             style={styles.addSourceBtn}
           >
             <Text style={styles.addSourceText}>+ Agregar fuente</Text>

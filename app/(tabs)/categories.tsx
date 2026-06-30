@@ -13,8 +13,8 @@ export default function CategoriesScreen() {
 
   const spentByCat: Record<string, number> = {};
   state.movements.forEach(m => {
-    if (m.type === 'expense' && m.catKey) {
-      spentByCat[m.catKey] = (spentByCat[m.catKey] || 0) + m.amount;
+    if (m.type === 'expense' && m.catId) {
+      spentByCat[m.catId] = (spentByCat[m.catId] || 0) + m.amount;
     }
   });
 
@@ -28,18 +28,17 @@ export default function CategoriesScreen() {
 
         <View style={styles.grid}>
           {state.categories.map(c => (
-            <View key={c.key} style={styles.card}>
+            <View key={c.id} style={styles.card}>
               <View style={[styles.cardIcon, { backgroundColor: hexAlpha(c.color, 0.15) }]}>
                 <Feather name={c.icon as any} size={22} color={c.color} />
               </View>
               <Text style={styles.cardName}>{c.name}</Text>
               <Text style={styles.cardSpent}>
-                {spentByCat[c.key] ? `$${fmtARS(spentByCat[c.key])}` : '—'}
+                {spentByCat[c.id] ? `$${fmtARS(spentByCat[c.id])}` : '—'}
               </Text>
             </View>
           ))}
 
-          {/* Add new */}
           <Pressable onPress={() => router.push('/add-category')} style={styles.addCard}>
             <View style={styles.addIcon}>
               <Feather name="plus" size={22} color={C.primary} />

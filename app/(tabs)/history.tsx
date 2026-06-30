@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
-import { C, F, fmtARS, hexAlpha } from '../../src/theme';
+import { C, F, fmtARS, fmtMovDate, hexAlpha } from '../../src/theme';
 
 type Filter = 'all' | 'exp' | 'inc';
 const FILTERS: { id: Filter; label: string }[] = [
@@ -31,7 +31,6 @@ export default function HistoryScreen() {
           <Text style={styles.title}>Historial</Text>
         </View>
 
-        {/* Filter chips */}
         <View style={styles.filters}>
           {FILTERS.map(f => (
             <Pressable
@@ -48,8 +47,8 @@ export default function HistoryScreen() {
 
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
           {filtered.map(m => {
-            const cat = state.categories.find(c => c.key === m.catKey);
-            let title = '', icon = 'credit-card', color = C.textMuted, amtColor = C.danger, sign = '−';
+            const cat = state.categories.find(c => c.id === m.catId);
+            let title = '', icon = 'credit-card', color: string = C.textMuted, amtColor: string = C.danger, sign = '−';
             if (m.type === 'recurring_credit') {
               title = 'Acreditación mensual'; icon = 'trending-up'; color = C.primary; amtColor = C.accent; sign = '+';
             } else if (m.type === 'income') {
@@ -58,7 +57,8 @@ export default function HistoryScreen() {
               title = cat?.name ?? 'Otros'; icon = cat?.icon ?? 'credit-card'; color = cat?.color ?? C.textMuted; amtColor = C.danger; sign = '−';
             }
             const who = m.author ? `${m.author} · ` : '';
-            const sub = m.note && m.type !== 'income' ? `${who}${m.note} · ${m.date}` : `${who}${m.date}`;
+            const dateLabel = fmtMovDate(m.date);
+            const sub = m.note && m.type !== 'income' ? `${who}${m.note} · ${dateLabel}` : `${who}${dateLabel}`;
             return (
               <View key={m.id} style={styles.row}>
                 <View style={[styles.rowIcon, { backgroundColor: hexAlpha(color, 0.15) }]}>

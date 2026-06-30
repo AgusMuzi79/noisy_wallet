@@ -56,3 +56,13 @@ export const fmtARS = (n: number) =>
   Math.round(Math.abs(n))
     .toString()
     .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+export function fmtMovDate(isoDate: string): string {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const yesterdayStr = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  if (isoDate === todayStr) return 'Hoy';
+  if (isoDate === yesterdayStr) return 'Ayer';
+  const d = new Date(isoDate + 'T12:00:00');
+  const MONTHS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}

@@ -10,7 +10,7 @@ const TABS = [
   { route: 'index', icon: 'home' as const, label: 'inicio' },
   { route: 'history', icon: 'list' as const, label: 'historial' },
   { route: 'income', icon: 'trending-up' as const, label: 'ingresos' },
-  { route: 'categories', icon: 'grid' as const, label: 'categorías' },
+  { route: 'categories', icon: 'grid' as const, label: 'categ.' },
 ];
 
 export default function BottomNav({ state, navigation }: BottomTabBarProps) {

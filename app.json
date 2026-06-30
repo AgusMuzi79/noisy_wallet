@@ -18,7 +18,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.agusmuzi.noisywallet"
+      "package": "com.agusmuzi.noisywallet",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,11 +37,21 @@
         }
       ],
       "expo-local-authentication",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-splash-screen"
     ],
     "scheme": "noisy-wallet",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "49289177-79f6-4907-a93d-4bcd22041a43"
+      }
+    },
+    "owner": "noisydev"
   }
 }
