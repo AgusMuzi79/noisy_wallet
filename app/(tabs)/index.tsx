@@ -107,7 +107,7 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.kicker}>NoisyWallet</Text>
+            <Text style={styles.kicker}>// NoisyWallet</Text>
             <Text style={styles.month}>{MONTH}</Text>
           </View>
           <Pressable onPress={() => router.push('/settings')} style={styles.iconBtn}>

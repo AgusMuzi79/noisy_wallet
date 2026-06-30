@@ -137,7 +137,7 @@ RecurringSource { id: string (UUID), name, amount, active }
 - `settings` table is a singleton (always `id = 1`)
 - The cron runs at 03:05 UTC (00:05 ART)
 - `income.tsx` SourceCard uses local state for name/amount fields and persists on `onEndEditing` to avoid a DB write on every keystroke
-- PIN is stored in `expo-secure-store` under key `@billetera:pin`
+- PIN is stored in `expo-secure-store` under key `billetera_pin`
 - User names are stored in AsyncStorage under `@billetera:user1` / `@billetera:user2`
 
 ## Supabase setup (one-time)

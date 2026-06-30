@@ -6,7 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, F } from '../theme';
 
-export const PIN_SECURE_KEY = '@billetera:pin';
+export const PIN_SECURE_KEY = 'billetera_pin';
 const PIN_LEN = 4;
 const KEYS = ['1','2','3','4','5','6','7','8','9','bio','0','del'] as const;
 type Key = typeof KEYS[number];

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { requestNotifPermissions, scheduleDailyReminder, cancelDailyReminder } from '../lib/notifications';
@@ -234,6 +235,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [refetchTransactions, refetchCategories, refetchSources, refetchSettings]);
 
+  // ── Re-fetch on foreground (WebSocket may have dropped in background) ────────
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') {
+        refetchTransactions();
+        refetchSources();
+        refetchCategories();
+        refetchSettings();
+      }
+    });
+    return () => sub.remove();
+  }, [refetchTransactions, refetchSources, refetchCategories, refetchSettings]);
+
   // ── Notification scheduling (runs once after initial load) ───────────────────
 
   useEffect(() => {
@@ -251,7 +266,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Actions ──────────────────────────────────────────────────────────────────
 
   const addMovement = useCallback(async (mv: Omit<Movement, 'id'>) => {
-    await supabase.from('transactions').insert({
+    const { error } = await supabase.from('transactions').insert({
       type: mv.type,
       amount: mv.amount,
       category_id: mv.catId ?? null,
@@ -259,6 +274,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       note: mv.note || null,
       date: mv.date,
     });
+    if (error) throw new Error(error.message);
     await refetchTransactions();
   }, [refetchTransactions]);
 

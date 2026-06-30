@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, Pressable, StyleSheet, ScrollView,
+  View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -33,15 +33,20 @@ export default function AddExpenseScreen() {
   const confirm = async () => {
     if (!canConfirm) return;
     setSaving(true);
-    await addMovement({
-      type: 'expense',
-      catId: selCat!,
-      amount: amtVal,
-      author,
-      date: new Date().toISOString().slice(0, 10),
-      note: note.trim(),
-    });
-    router.back();
+    try {
+      await addMovement({
+        type: 'expense',
+        catId: selCat!,
+        amount: amtVal,
+        author,
+        date: new Date().toISOString().slice(0, 10),
+        note: note.trim(),
+      });
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Error al guardar', e?.message ?? 'No se pudo guardar el gasto');
+      setSaving(false);
+    }
   };
 
   return (

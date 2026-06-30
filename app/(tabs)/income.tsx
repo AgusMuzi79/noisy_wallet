@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Switch, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Switch, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -73,15 +73,19 @@ export default function IncomeScreen() {
 
   const addExtra = async () => {
     if (!extraVal) return;
-    await addMovement({
-      type: 'income',
-      amount: extraVal,
-      author: 'Agus',
-      date: new Date().toISOString().slice(0, 10),
-      note: extraNote.trim() || 'Ingreso extra',
-    });
-    setExtraRaw('');
-    setExtraNote('');
+    try {
+      await addMovement({
+        type: 'income',
+        amount: extraVal,
+        author: state.user1Name || 'Agus',
+        date: new Date().toISOString().slice(0, 10),
+        note: extraNote.trim() || 'Ingreso extra',
+      });
+      setExtraRaw('');
+      setExtraNote('');
+    } catch (e: any) {
+      Alert.alert('Error al guardar', e?.message ?? 'No se pudo agregar el ingreso');
+    }
   };
 
   return (
