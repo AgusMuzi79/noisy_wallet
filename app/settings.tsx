@@ -11,7 +11,7 @@ const TIME_OPTS = [
   { label: '22:00', hour: 22 },
 ];
 
-const PIN_KEY = '@billetera:pin';
+const PIN_KEY = 'billetera_pin';
 
 export default function SettingsScreen() {
   const { state, saveSettings, setBio, setUserNames } = useApp();
