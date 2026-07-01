@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +14,7 @@ const FILTERS: { id: Filter; label: string }[] = [
 ];
 
 export default function HistoryScreen() {
-  const { state } = useApp();
+  const { state, deleteMovement } = useApp();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -59,8 +59,16 @@ export default function HistoryScreen() {
             const who = m.author ? `${m.author} · ` : '';
             const dateLabel = fmtMovDate(m.date);
             const sub = m.note && m.type !== 'income' ? `${who}${m.note} · ${dateLabel}` : `${who}${dateLabel}`;
+            const confirmDelete = () => Alert.alert(
+              'Eliminar movimiento',
+              `${sign}$${fmtARS(m.amount)} · ${title}`,
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Eliminar', style: 'destructive', onPress: () => deleteMovement(m.id) },
+              ],
+            );
             return (
-              <View key={m.id} style={styles.row}>
+              <Pressable key={m.id} style={styles.row} onLongPress={confirmDelete} delayLongPress={400}>
                 <View style={[styles.rowIcon, { backgroundColor: hexAlpha(color, 0.15) }]}>
                   <Feather name={icon as any} size={20} color={color} />
                 </View>
@@ -69,7 +77,7 @@ export default function HistoryScreen() {
                   <Text style={styles.rowSub}>{sub}</Text>
                 </View>
                 <Text style={[styles.rowAmt, { color: amtColor }]}>{sign}${fmtARS(m.amount)}</Text>
-              </View>
+              </Pressable>
             );
           })}
         </ScrollView>
