@@ -120,7 +120,7 @@ export default function IncomeScreen() {
           </View>
 
           <Pressable
-            onPress={() => addSource({ name: 'Nueva fuente', amount: 0, active: true })}
+            onPress={() => addSource({ name: 'Nueva fuente', amount: 1, active: true })}
             style={styles.addSourceBtn}
           >
             <Text style={styles.addSourceText}>+ Agregar fuente</Text>
