@@ -13,14 +13,6 @@ const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Ago
 const now = new Date();
 const MONTH = `${MONTHS_ES[now.getMonth()]} ${now.getFullYear()}`;
 
-function useBlinkCursor() {
-  const [visible, setVisible] = useState(true);
-  useEffect(() => {
-    const t = setInterval(() => setVisible(v => !v), 550);
-    return () => clearInterval(t);
-  }, []);
-  return visible;
-}
 
 function MovRow({ m, categories }: { m: Movement; categories: any[] }) {
   const cat = categories.find(c => c.id === m.catId);
@@ -52,8 +44,6 @@ function MovRow({ m, categories }: { m: Movement; categories: any[] }) {
 export default function HomeScreen() {
   const { state } = useApp();
   const insets = useSafeAreaInsets();
-  const cursor = useBlinkCursor();
-
   const balAnim = useRef(new Animated.Value(state.balance)).current;
   const [displayBal, setDisplayBal] = useState(state.balance);
   const flashOpacity = useRef(new Animated.Value(0)).current;
@@ -125,7 +115,6 @@ export default function HomeScreen() {
                 <Text style={[styles.labBalance, { color: gaugeColor }]}>
                   {fmtARS(displayBal)}
                 </Text>
-                {cursor && <Text style={[styles.labCursor, { color: C.accent }]}>_</Text>}
               </View>
               <Text style={styles.incomeHint}>de ${fmtARS(monthIncome)} de ingresos este mes</Text>
               <View style={styles.gaugeHeader}>
