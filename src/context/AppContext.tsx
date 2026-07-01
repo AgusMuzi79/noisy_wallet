@@ -286,6 +286,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [refetchTransactions]);
 
   const addSource = useCallback(async (s: Omit<RecurringSource, 'id'>) => {
+    const tempId = `temp-${Math.random()}`;
+    setState(prev => ({ ...prev, sources: [...prev.sources, { id: tempId, ...s }] }));
     await supabase.from('recurring_sources').insert({ name: s.name, amount: s.amount, active: s.active });
     await refetchSources();
   }, [refetchSources]);
