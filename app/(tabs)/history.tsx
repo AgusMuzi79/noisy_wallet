@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 import { C, F, fmtARS, fmtMovDate, hexAlpha } from '../../src/theme';
+import CategoryIcon from '../../src/components/CategoryIcon';
 
 type Filter = 'all' | 'exp' | 'inc';
 const FILTERS: { id: Filter; label: string }[] = [
@@ -70,7 +71,7 @@ export default function HistoryScreen() {
             return (
               <Pressable key={m.id} style={styles.row} onLongPress={confirmDelete} delayLongPress={400}>
                 <View style={[styles.rowIcon, { backgroundColor: hexAlpha(color, 0.15) }]}>
-                  <Feather name={icon as any} size={20} color={color} />
+                  <CategoryIcon icon={icon} size={20} color={color} />
                 </View>
                 <View style={styles.rowInfo}>
                   <Text style={styles.rowTitle}>{title}</Text>

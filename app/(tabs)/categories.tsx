@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 import { C, F, fmtARS, hexAlpha } from '../../src/theme';
+import CategoryIcon from '../../src/components/CategoryIcon';
 
 export default function CategoriesScreen() {
   const { state } = useApp();
@@ -30,7 +31,7 @@ export default function CategoriesScreen() {
           {state.categories.map(c => (
             <Pressable key={c.id} style={styles.card} onPress={() => router.push(`/edit-category?id=${c.id}`)}>
               <View style={[styles.cardIcon, { backgroundColor: hexAlpha(c.color, 0.15) }]}>
-                <Feather name={c.icon as any} size={22} color={c.color} />
+                <CategoryIcon icon={c.icon} size={22} color={c.color} />
               </View>
               <Text style={styles.cardName}>{c.name}</Text>
               <Text style={styles.cardSpent}>

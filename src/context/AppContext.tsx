@@ -151,6 +151,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (data) setState(s => ({ ...s, sources: data.map(rowToSource) }));
   }, []);
 
+  const triggerMonthlyCredit = useCallback(async () => {
+    if (new Date().getDate() !== 1) return;
+    try {
+      const { data } = await supabase.functions.invoke('credit-monthly-income');
+      if (data?.credited) await refetchTransactions();
+    } catch {
+      // silent — cron is the primary mechanism
+    }
+  }, [refetchTransactions]);
+
   const refetchSettings = useCallback(async () => {
     const { data } = await supabase.from('settings').select('*').eq('id', 1).single();
     if (!data) return;
@@ -217,6 +227,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         user2Name: storedUser2 ?? '',
       });
       setLoading(false);
+      triggerMonthlyCredit();
     }
 
     load();
@@ -246,10 +257,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         refetchSources();
         refetchCategories();
         refetchSettings();
+        triggerMonthlyCredit();
       }
     });
     return () => sub.remove();
-  }, [refetchTransactions, refetchSources, refetchCategories, refetchSettings]);
+  }, [refetchTransactions, refetchSources, refetchCategories, refetchSettings, triggerMonthlyCredit]);
 
   // ── Notification scheduling (runs once after initial load) ───────────────────
 

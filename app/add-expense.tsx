@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { C, F, fmtARS, hexAlpha } from '../src/theme';
+import CategoryIcon from '../src/components/CategoryIcon';
 
 const KEYPAD = ['1','2','3','4','5','6','7','8','9','000','0','del'];
 export default function AddExpenseScreen() {
@@ -50,7 +51,7 @@ export default function AddExpenseScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
@@ -79,7 +80,7 @@ export default function AddExpenseScreen() {
                 onPress={() => setSelCat(c.id)}
                 style={[styles.chip, on && { backgroundColor: hexAlpha(c.color, 0.18), borderColor: c.color }]}
               >
-                <Feather name={c.icon as any} size={17} color={on ? c.color : C.textMuted} />
+                <CategoryIcon icon={c.icon} size={17} color={on ? c.color : C.textMuted} />
                 <Text style={[styles.chipText, { color: on ? C.text : C.textMuted }]}>{c.name}</Text>
               </Pressable>
             );

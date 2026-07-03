@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp, Movement } from '../../src/context/AppContext';
 import { C, F, fmtARS, fmtMovDate, hexAlpha } from '../../src/theme';
+import CategoryIcon from '../../src/components/CategoryIcon';
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const now = new Date();
@@ -30,7 +31,7 @@ function MovRow({ m, categories }: { m: Movement; categories: any[] }) {
   return (
     <View style={styles.row}>
       <View style={[styles.rowIcon, { backgroundColor: hexAlpha(color, 0.15) }]}>
-        <Feather name={icon as any} size={20} color={color} />
+        <CategoryIcon icon={icon} size={20} color={color} />
       </View>
       <View style={styles.rowInfo}>
         <Text style={styles.rowTitle} numberOfLines={1}>{title}</Text>
@@ -50,7 +51,6 @@ export default function HomeScreen() {
   const flashY = useRef(new Animated.Value(0)).current;
   const [flash, setFlash] = useState<{ text: string; color: string } | null>(null);
   const prevBalance = useRef(state.balance);
-
   useEffect(() => {
     const id = balAnim.addListener(({ value }) => setDisplayBal(value));
     return () => balAnim.removeListener(id);
@@ -85,11 +85,18 @@ export default function HomeScreen() {
     }).start();
   }, [state.balance]);
 
-  const monthIncome = state.sources.filter(s => s.active).reduce((a, s) => a + s.amount, 0);
+  const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const recurringIncome = state.sources.filter(s => s.active).reduce((a, s) => a + s.amount, 0);
+  const extraIncome = state.movements
+    .filter(m => m.type === 'income' && m.date.startsWith(currentMonthPrefix))
+    .reduce((a, m) => a + m.amount, 0);
+  const monthIncome = recurringIncome + extraIncome;
   const ratio = monthIncome > 0 ? Math.max(0, displayBal / monthIncome) : 0;
   const ratioClamped = Math.max(0, Math.min(1, ratio));
   const ratioPct = Math.round(ratioClamped * 100);
   const gaugeColor = ratio > 0.5 ? C.accent : ratio > 0.22 ? C.primary : C.danger;
+  const today = new Date().toISOString().slice(0, 10);
+  const hasExpenseToday = state.movements.some(m => m.type === 'expense' && m.date === today);
 
   return (
     <LinearGradient colors={['#1B1726', '#0F0D15']} style={styles.flex}>
@@ -142,7 +149,7 @@ export default function HomeScreen() {
           </View>
 
           {/* Reminder card */}
-          {state.notifEnabled && (
+          {state.notifEnabled && !hasExpenseToday && (
             <Pressable onPress={() => router.push('/add-expense')} style={styles.reminderCard}>
               <View style={styles.reminderIcon}>
                 <Feather name="bell" size={19} color={C.accent} />
@@ -175,11 +182,11 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, marginTop: 8, marginBottom: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, marginTop: 14, marginBottom: 10 },
   kicker: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle },
   month: { fontFamily: F.sans, fontSize: 15, color: C.textMuted, marginTop: 3 },
   iconBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
-  scroll: { paddingHorizontal: 22, paddingBottom: 110 },
+  scroll: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 110 },
 
   styleRow: { alignItems: 'flex-end', marginBottom: 20 },
   stylePills: { flexDirection: 'row', backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, borderRadius: 999, padding: 3, gap: 2 },
@@ -192,13 +199,13 @@ const styles = StyleSheet.create({
   flash: { position: 'absolute', top: 30, right: 0 },
   flashText: { fontFamily: F.mono, fontSize: 18, fontWeight: '700' },
 
-  labKicker: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle, marginBottom: 6 },
+  labKicker: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle, marginBottom: 10 },
   labBalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
   labCurrency: { fontFamily: F.mono, fontSize: 26, fontWeight: '700' },
   labBalance: { fontFamily: F.mono, fontSize: 48, fontWeight: '700', letterSpacing: -1, lineHeight: 52 },
   labCursor: { fontFamily: F.mono, fontSize: 40, fontWeight: '700' },
-  incomeHint: { fontFamily: F.sans, fontSize: 13, color: C.textSubtle, marginTop: 8 },
-  gaugeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 8 },
+  incomeHint: { fontFamily: F.sans, fontSize: 13, color: C.textSubtle, marginTop: 14 },
+  gaugeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 26, marginBottom: 10 },
   gaugeLabel: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: C.textSubtle },
   gaugePct: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2 },
   segments: { flexDirection: 'row', gap: 3, height: 14 },

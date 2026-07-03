@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, Alert, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import CategoryIcon from '../src/components/CategoryIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { C, F, hexAlpha } from '../src/theme';
@@ -28,10 +29,11 @@ export default function EditCategoryScreen() {
   const [color, setColor] = useState(cat?.color ?? PALETTE[0]);
   const [saving, setSaving] = useState(false);
 
-  if (!cat) {
-    router.back();
-    return null;
-  }
+  useEffect(() => {
+    if (!cat) router.back();
+  }, [cat]);
+
+  if (!cat) return null;
 
   const canSave = name.trim().length > 0 && !saving;
 
@@ -54,7 +56,6 @@ export default function EditCategoryScreen() {
         text: 'Eliminar', style: 'destructive',
         onPress: async () => {
           await deleteCategory(id);
-          router.back();
         },
       },
     ]);
@@ -77,7 +78,7 @@ export default function EditCategoryScreen() {
           {/* Preview */}
           <View style={styles.preview}>
             <View style={[styles.previewIcon, { backgroundColor: hexAlpha(color, 0.16) }]}>
-              <Feather name={icon as any} size={30} color={color} />
+              <CategoryIcon icon={icon} size={30} color={color} />
             </View>
             <Text style={styles.previewName}>{name.trim() || 'Sin nombre'}</Text>
           </View>
