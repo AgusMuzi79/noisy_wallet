@@ -26,8 +26,8 @@ The user redesigned the app in Claude Design; v2 also reworks flows (entry sheet
 - [x] T2 — Icons: 18-icon set via `CategoryIcon` (Feather + `mci:` MaterialCommunityIcons), palette order; `add-category.tsx`, `edit-category.tsx`. (commit `1757d89`; route: delegated writer; tsc no new errors)
 - [x] T3 — Context data API: `addMovement`/`addCategory` return id; expose `createdAt`; month selectors; running balance; grouped recurring credits helper. (commit `f18af69`; route: delegated writer; tsc no new errors, TS2440 fixed; running-balance/grouping checked with a node script)
 - [x] T4 — Pill nav: `BottomNav.tsx`, `(tabs)/_layout.tsx`. (commit `b037fbd`; route: delegated writer; tsc no new errors, bottom-tabs import error removed; expo export android bundles)
-- [x] T5 — "Anotar" entry sheet (expense + extra income, projection, inline category create "Crear y usar") + undo toast; retire `add-expense.tsx`. (route: delegated writer; tsc no new errors (8 base lines), expo export android bundles, `rg add-expense app src` empty)
-- [ ] T6 — Home: wordmark, odometer, continuous bar + ghost bite, today strip, 5 recent rows with running balance, row flash.
+- [x] T5 — "Anotar" entry sheet (expense + extra income, projection, inline category create "Crear y usar") + undo toast; retire `add-expense.tsx`. (commit `97bf06f`; route: delegated writer; tsc no new errors (8 base lines), expo export android bundles, `rg add-expense app src` empty)
+- [x] T6 — Home: wordmark, odometer, continuous bar + ghost bite, today strip, 5 recent rows with running balance, row flash. (commit: see git log `feat(home)`; route: delegated writer; tsc no new errors (8 base lines), expo export android bundles)
 - [ ] T7 — Movimientos: type + author segments, day groups with net, running balance, empty state, keep long-press delete.
 - [ ] T8 — Ingresos: fixed sources list, month extras list, open sheet in extra mode.
 - [ ] T9 — Categorías (share bar, list by month spend, tap → edit) + Nueva categoría (preview tile, contextual back/save).
@@ -50,5 +50,8 @@ No test runner in the project → no RED/GREEN. Per task: `npx tsc --noEmit` (no
 - T1–T4 done (foundations). Pill nav is absolutely positioned; tab screens keep their 110px bottom padding until restyled in T6–T9.
 - `addCategory` now throws on insert error; `add-category.tsx` shows an Alert instead of silently going back.
 
+- T5: sheet state (mode, draft, undo toast, `lastAdded`) lives in `src/context/SheetContext.tsx`; `EntrySheet` + `UndoToast` render once in `app/_layout.tsx`. "Nueva" tile closes the sheet and pushes `/add-category?from=sheet`; add-category reopens the sheet on unmount (save, back or hardware back) keeping the draft and selecting the new category.
+- T6: `Odometer` and `MovementRow` extracted for reuse (T7). Ghost bite triggers on any ratio drop (own entry, partner's Realtime entry or undo of an income). `useReduceMotion` hook in theme.
+
 ## Next step
-T5 (entry sheet + undo toast).
+T7 (Movimientos) reusing `MovementRow`.

@@ -1,251 +1,240 @@
-import React, { useRef, useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, Pressable, StyleSheet, Animated, Easing,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, Animated } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp, Movement } from '../../src/context/AppContext';
-import { C, F, fmtARS, fmtMovDate, hexAlpha } from '../../src/theme';
-import CategoryIcon from '../../src/components/CategoryIcon';
+import { useApp } from '../../src/context/AppContext';
 import { useSheet } from '../../src/context/SheetContext';
+import { C, F, M, R, fmtARS, useReduceMotion } from '../../src/theme';
+import Odometer from '../../src/components/Odometer';
+import MovementRow from '../../src/components/MovementRow';
+import { BlinkCursor, levelColor } from '../../src/components/EntrySheet';
 
-const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const now = new Date();
-const MONTH = `${MONTHS_ES[now.getMonth()]} ${now.getFullYear()}`;
+const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const GHOST_HOLD_MS = 650;
+const RECENT_COUNT = 5;
 
+export default function HomeScreen() {
+  const { state, monthIncome, monthSpent, displayMovements } = useApp();
+  const { openSheet, lastAdded } = useSheet();
+  const insets = useSafeAreaInsets();
+  const reduce = useReduceMotion();
 
-function MovRow({ m, categories }: { m: Movement; categories: any[] }) {
-  const cat = categories.find(c => c.id === m.catId);
-  let title = '', icon = 'credit-card', color: string = C.textMuted, amtColor: string = C.danger, sign = '−';
-  if (m.type === 'recurring_credit') {
-    title = 'Acreditación mensual'; icon = 'trending-up'; color = C.primary; amtColor = C.accent; sign = '+';
-  } else if (m.type === 'income') {
-    title = m.note || 'Ingreso extra'; icon = 'trending-up'; color = C.accent; amtColor = C.accent; sign = '+';
-  } else {
-    title = cat?.name ?? 'Otros'; icon = cat?.icon ?? 'credit-card'; color = cat?.color ?? C.textMuted; amtColor = C.danger; sign = '−';
-  }
-  const who = m.author ? `${m.author} · ` : '';
-  const dateLabel = fmtMovDate(m.date);
-  const sub = m.note && m.type !== 'income' ? `${who}${m.note} · ${dateLabel}` : `${who}${dateLabel}`;
+  // Hero balance is all-time; the gauge compares it with this month's income
+  const balance = state.balance;
+  const ratio = monthIncome > 0 ? Math.max(0, Math.min(1, balance / monthIncome)) : 0;
+  const ratioColor = levelColor(ratio);
+
+  // ── Gauge: fill follows the ratio; a red "ghost" holds the previous ratio for
+  // a beat after it drops, then shrinks to show the bite ──────────────────────
+  const fill = useRef(new Animated.Value(ratio)).current;
+  const ghost = useRef(new Animated.Value(ratio)).current;
+  const prevRatio = useRef(ratio);
+  useEffect(() => {
+    const prev = prevRatio.current;
+    prevRatio.current = ratio;
+    if (prev === ratio) return;
+    if (reduce) { fill.setValue(ratio); ghost.setValue(ratio); return; }
+    Animated.timing(fill, { toValue: ratio, duration: 350, easing: M.easeOut, useNativeDriver: false }).start();
+    if (ratio < prev) {
+      ghost.setValue(prev);
+      const bite = Animated.sequence([
+        Animated.delay(GHOST_HOLD_MS),
+        Animated.timing(ghost, { toValue: ratio, duration: 1000, easing: M.easeInOut, useNativeDriver: false }),
+      ]);
+      bite.start();
+      return () => bite.stop();
+    }
+    ghost.setValue(ratio);
+  }, [ratio, reduce, fill, ghost]);
+
+  // ── Floating "−$X" / "+$X" next to the balance when it changes ─────────────
+  const flashAnim = useRef(new Animated.Value(0)).current;
+  const [flash, setFlash] = useState<{ text: string; color: string } | null>(null);
+  const prevBalance = useRef(balance);
+  useEffect(() => {
+    const delta = balance - prevBalance.current;
+    prevBalance.current = balance;
+    if (delta === 0 || reduce) return;
+    setFlash({ text: `${delta > 0 ? '+' : '−'}$${fmtARS(delta)}`, color: delta > 0 ? C.accent : C.danger });
+    flashAnim.setValue(0);
+    Animated.timing(flashAnim, { toValue: 1, duration: 1900, useNativeDriver: true }).start(() => setFlash(null));
+  }, [balance, reduce, flashAnim]);
+
+  const now = new Date();
+  const monthName = MONTHS_ES[now.getMonth()];
+  const today = now.toISOString().slice(0, 10); // same convention as new entries
+  const todayExpenses = state.movements.filter(m => m.type === 'expense' && m.date === today);
+  const todaySpent = todayExpenses.reduce((a, m) => a + m.amount, 0);
+  const recent = displayMovements.slice(0, RECENT_COUNT);
+  const pct = Math.round(ratio * 100);
+  const widthOf = (v: Animated.Value) => v.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+
   return (
-    <View style={styles.row}>
-      <View style={[styles.rowIcon, { backgroundColor: hexAlpha(color, 0.15) }]}>
-        <CategoryIcon icon={icon} size={20} color={color} />
-      </View>
-      <View style={styles.rowInfo}>
-        <Text style={styles.rowTitle} numberOfLines={1}>{title}</Text>
-        <Text style={styles.rowSub}>{sub}</Text>
-      </View>
-      <Text style={[styles.rowAmt, { color: amtColor }]}>{sign}${fmtARS(m.amount)}</Text>
+    <View style={[styles.flex, { paddingTop: insets.top }]}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.brand}>
+            <Text style={styles.wordmark}>noisy</Text>
+            <View style={styles.row}>
+              <Text style={styles.wordmarkMono}>wallet</Text>
+              <BlinkCursor style={styles.wordmarkMono} />
+            </View>
+          </View>
+          <Pressable
+            onPress={() => router.push('/settings')}
+            accessibilityLabel="Ajustes"
+            style={({ pressed }) => [styles.gear, pressed && { backgroundColor: C.surface }]}
+          >
+            <Feather name="settings" size={20} color={C.textMuted} />
+          </Pressable>
+        </View>
+
+        {/* Balance */}
+        <Text style={styles.kicker}>// te quedan · {monthName}</Text>
+        <View style={styles.balanceWrap}>
+          <Odometer
+            value={balance}
+            color={ratioColor}
+            accessibilityLabel={`Te quedan ${balance < 0 ? 'menos ' : ''}${fmtARS(balance)} pesos, ${pct} por ciento de lo que entró`}
+          />
+          {flash && (
+            <Animated.Text
+              style={[
+                styles.flash,
+                {
+                  color: flash.color,
+                  opacity: flashAnim.interpolate({ inputRange: [0, 0.12, 0.75, 1], outputRange: [0, 1, 1, 0] }),
+                  transform: [{ translateY: flashAnim.interpolate({ inputRange: [0, 0.12, 1], outputRange: [8, 0, -26] }) }],
+                },
+              ]}
+            >
+              {flash.text}
+            </Animated.Text>
+          )}
+        </View>
+        <Text style={styles.incomeHint}>
+          de <Text style={styles.incomeValue}>${fmtARS(monthIncome)}</Text> que entraron este mes
+        </Text>
+
+        {/* Gauge */}
+        <View style={styles.bar}>
+          <Animated.View style={[styles.barFill, { backgroundColor: C.danger, width: widthOf(ghost) }]} />
+          <Animated.View style={[styles.barFill, { backgroundColor: ratioColor, width: widthOf(fill) }]} />
+        </View>
+        <View style={styles.barFoot}>
+          <Text style={styles.barText}><Text style={{ color: ratioColor }}>{pct}%</Text> disponible</Text>
+          <Text style={styles.barText}>gastado ${fmtARS(monthSpent)}</Text>
+        </View>
+
+        {/* Today strip — always visible */}
+        <View style={styles.today}>
+          {todayExpenses.length === 0 ? (
+            <>
+              <Text style={styles.todayChevron}>›</Text>
+              <View style={styles.grow}>
+                <View style={styles.row}>
+                  <Text style={[styles.todayTitle, styles.shrink]}>Hoy todavía no anotaste nada</Text>
+                  <BlinkCursor style={[styles.todayTitle, { color: C.accent }]} />
+                </View>
+                <Text style={styles.todaySub}>Un café también cuenta.</Text>
+              </View>
+              <Pressable
+                onPress={() => openSheet('expense')}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.todayBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.todayBtnText}>Anotar</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Feather name="check" size={18} color={C.accent} />
+              <Text style={[styles.grow, styles.todayDone]}>
+                Hoy: <Text style={styles.todayStrong}>
+                  {todayExpenses.length === 1 ? '1 gasto' : `${todayExpenses.length} gastos`}
+                </Text> · <Text style={styles.todayMono}>${fmtARS(todaySpent)}</Text>
+              </Text>
+              <Pressable
+                onPress={() => openSheet('expense')}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.todayGhostBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.todayGhostText}>+ Otro</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+
+        {/* Recent */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.kickerFlat}>// últimos</Text>
+          <Pressable onPress={() => router.navigate('/history')} hitSlop={8}>
+            <Text style={styles.seeAll}>ver todos →</Text>
+          </Pressable>
+        </View>
+        <View>
+          {recent.map((m, i) => (
+            <MovementRow
+              key={m.id}
+              m={m}
+              categories={state.categories}
+              divider={i > 0}
+              flash={!!lastAdded && m.ids.includes(lastAdded.id)}
+            />
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
-export default function HomeScreen() {
-  const { state } = useApp();
-  const { openSheet } = useSheet();
-  const insets = useSafeAreaInsets();
-  const balAnim = useRef(new Animated.Value(state.balance)).current;
-  const [displayBal, setDisplayBal] = useState(state.balance);
-  const flashOpacity = useRef(new Animated.Value(0)).current;
-  const flashY = useRef(new Animated.Value(0)).current;
-  const [flash, setFlash] = useState<{ text: string; color: string } | null>(null);
-  const prevBalance = useRef(state.balance);
-  useEffect(() => {
-    const id = balAnim.addListener(({ value }) => setDisplayBal(value));
-    return () => balAnim.removeListener(id);
-  }, []);
-
-  useEffect(() => {
-    if (state.balance === prevBalance.current) return;
-    const delta = state.balance - prevBalance.current;
-    prevBalance.current = state.balance;
-
-    setFlash({
-      text: `${delta > 0 ? '+' : '−'}$${fmtARS(delta)}`,
-      color: delta > 0 ? C.accent : C.danger,
-    });
-    flashOpacity.setValue(0);
-    flashY.setValue(6);
-
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(flashOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-        Animated.delay(1000),
-        Animated.timing(flashOpacity, { toValue: 0, duration: 540, useNativeDriver: true }),
-      ]),
-      Animated.timing(flashY, { toValue: -28, duration: 1800, useNativeDriver: true }),
-    ]).start(() => setFlash(null));
-
-    Animated.timing(balAnim, {
-      toValue: state.balance,
-      duration: 1050,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [state.balance]);
-
-  const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const monthMovements = state.movements.filter(m => m.date.startsWith(currentMonthPrefix));
-  // Use what was actually credited this month; source amounts may have changed since.
-  // Fall back to active sources until the month's credit lands.
-  const creditedIncome = monthMovements
-    .filter(m => m.type === 'recurring_credit')
-    .reduce((a, m) => a + m.amount, 0);
-  const recurringIncome = creditedIncome > 0
-    ? creditedIncome
-    : state.sources.filter(s => s.active).reduce((a, s) => a + s.amount, 0);
-  const extraIncome = monthMovements
-    .filter(m => m.type === 'income')
-    .reduce((a, m) => a + m.amount, 0);
-  const monthIncome = recurringIncome + extraIncome;
-  const ratio = monthIncome > 0 ? Math.max(0, displayBal / monthIncome) : 0;
-  const ratioClamped = Math.max(0, Math.min(1, ratio));
-  const ratioPct = Math.round(ratioClamped * 100);
-  const gaugeColor = ratio > 0.5 ? C.accent : ratio > 0.22 ? C.primary : C.danger;
-  const today = new Date().toISOString().slice(0, 10);
-  const hasExpenseToday = state.movements.some(m => m.type === 'expense' && m.date === today);
-
-  return (
-    <LinearGradient colors={['#1B1726', '#0F0D15']} style={styles.flex}>
-      <View style={[styles.flex, { paddingTop: insets.top }]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.kicker}>// NoisyWallet</Text>
-            <Text style={styles.month}>{MONTH}</Text>
-          </View>
-          <Pressable onPress={() => router.push('/settings')} style={styles.iconBtn}>
-            <Feather name="settings" size={19} color={C.textMuted} />
-          </Pressable>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* Balance hero */}
-          <View style={styles.heroContainer}>
-            <View>
-              <Text style={styles.labKicker}>saldo disponible</Text>
-              <View style={styles.labBalRow}>
-                <Text style={[styles.labCurrency, { color: gaugeColor }]}>$</Text>
-                <Text style={[styles.labBalance, { color: gaugeColor }]}>
-                  {fmtARS(displayBal)}
-                </Text>
-              </View>
-              <Text style={styles.incomeHint}>de ${fmtARS(monthIncome)} de ingresos este mes</Text>
-              <View style={styles.gaugeHeader}>
-                <Text style={styles.gaugeLabel}>saldo restante</Text>
-                <Text style={[styles.gaugePct, { color: gaugeColor }]}>{ratioPct}%</Text>
-              </View>
-              <View style={styles.segments}>
-                {Array.from({ length: 24 }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.seg,
-                      { backgroundColor: i < ratioClamped * 24 ? gaugeColor : C.surface2 },
-                    ]}
-                  />
-                ))}
-              </View>
-            </View>
-
-            {flash && (
-              <Animated.View style={[styles.flash, { opacity: flashOpacity, transform: [{ translateY: flashY }] }]}>
-                <Text style={[styles.flashText, { color: flash.color }]}>{flash.text}</Text>
-              </Animated.View>
-            )}
-          </View>
-
-          {/* Reminder card */}
-          {state.notifEnabled && !hasExpenseToday && (
-            <Pressable onPress={() => openSheet('expense')} style={styles.reminderCard}>
-              <View style={styles.reminderIcon}>
-                <Feather name="bell" size={19} color={C.accent} />
-              </View>
-              <View style={styles.reminderText}>
-                <Text style={styles.reminderTitle}>¿Anotaste lo de hoy?</Text>
-                <Text style={styles.reminderSub}>Tocá para sumar un gasto en 5 segundos</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color={C.accent} />
-            </Pressable>
-          )}
-
-          {/* Recent movements */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionKicker}>// movimientos</Text>
-            <Pressable onPress={() => router.push('/history')}>
-              <Text style={styles.seeAll}>ver todo →</Text>
-            </Pressable>
-          </View>
-          <View style={styles.rows}>
-            {state.movements.slice(0, 4).map(m => (
-              <MovRow key={m.id} m={m} categories={state.categories} />
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-    </LinearGradient>
-  );
-}
-
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, marginTop: 14, marginBottom: 10 },
-  kicker: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle },
-  month: { fontFamily: F.sans, fontSize: 15, color: C.textMuted, marginTop: 3 },
-  iconBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
-  scroll: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 110 },
+  flex: { flex: 1, backgroundColor: C.bg },
+  grow: { flex: 1, minWidth: 0 },
+  shrink: { flexShrink: 1 },
+  row: { flexDirection: 'row', alignItems: 'baseline' },
+  // Bottom padding clears the floating pill nav
+  scroll: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 120 },
+  pressed: { transform: [{ translateY: 1 }] },
 
-  styleRow: { alignItems: 'flex-end', marginBottom: 20 },
-  stylePills: { flexDirection: 'row', backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, borderRadius: 999, padding: 3, gap: 2 },
-  pill: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 999 },
-  pillActive: { backgroundColor: C.primary },
-  pillText: { fontFamily: F.mono, fontSize: 12, letterSpacing: 1, color: C.textMuted },
-  pillTextActive: { color: C.primaryContrast },
+  header: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  brand: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  wordmark: { fontFamily: F.display, fontSize: 21, letterSpacing: -0.2, color: C.text },
+  wordmarkMono: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.accent },
+  gear: { width: 44, height: 44, marginRight: -10, borderRadius: R.lg, alignItems: 'center', justifyContent: 'center' },
 
-  heroContainer: { position: 'relative', marginBottom: 24 },
-  flash: { position: 'absolute', top: 30, right: 0 },
-  flashText: { fontFamily: F.mono, fontSize: 18, fontWeight: '700' },
+  kicker: { marginTop: 30, fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle },
+  balanceWrap: { marginTop: 12, position: 'relative' },
+  flash: { position: 'absolute', right: 0, top: -16, fontFamily: F.monoBold, fontSize: 17 },
+  incomeHint: { marginTop: 12, fontFamily: F.sans, fontSize: 14, color: C.textMuted },
+  incomeValue: { fontFamily: F.mono, color: C.text },
 
-  labKicker: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle, marginBottom: 10 },
-  labBalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
-  labCurrency: { fontFamily: F.mono, fontSize: 26, fontWeight: '700' },
-  labBalance: { fontFamily: F.mono, fontSize: 48, fontWeight: '700', letterSpacing: -1, lineHeight: 52 },
-  labCursor: { fontFamily: F.mono, fontSize: 40, fontWeight: '700' },
-  incomeHint: { fontFamily: F.sans, fontSize: 13, color: C.textSubtle, marginTop: 14 },
-  gaugeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 26, marginBottom: 10 },
-  gaugeLabel: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: C.textSubtle },
-  gaugePct: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.2 },
-  segments: { flexDirection: 'row', gap: 3, height: 14 },
-  seg: { flex: 1, borderRadius: 2 },
+  bar: { marginTop: 26, height: 14, borderRadius: 4, backgroundColor: C.surface2, overflow: 'hidden' },
+  barFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 4 },
+  barFoot: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
+  barText: { fontFamily: F.mono, fontSize: 11.5, color: C.textSubtle },
 
-  calmLabel: { fontFamily: F.sansSemibold, fontSize: 13, letterSpacing: 0.4, color: C.textMuted, marginBottom: 4 },
-  calmBalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  calmCurrency: { fontFamily: F.display, fontSize: 34 },
-  calmBalance: { fontFamily: F.display, fontSize: 64, letterSpacing: -0.5, lineHeight: 62 },
-  calmIncomeHint: { fontFamily: F.sans, fontSize: 14, color: C.textSubtle, marginTop: 10 },
-  calmGaugeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 9 },
-  calmGaugeLabel: { fontFamily: F.sans, fontSize: 13, color: C.textMuted },
-  calmGaugePct: { fontFamily: F.sansBold, fontSize: 13 },
-  progressTrack: { height: 12, borderRadius: 999, backgroundColor: C.surface2, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 999 },
+  today: {
+    marginTop: 28, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderTopWidth: 1.5, borderBottomWidth: 1.5, borderColor: C.border,
+  },
+  todayChevron: { fontFamily: F.monoBold, fontSize: 16, color: C.accent },
+  todayTitle: { fontFamily: F.sansSemibold, fontSize: 14.5, color: C.text },
+  todaySub: { fontFamily: F.sans, fontSize: 12.5, color: C.textSubtle, marginTop: 2 },
+  todayBtn: { height: 40, paddingHorizontal: 16, borderRadius: R.seg, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
+  todayBtnText: { fontFamily: F.sansBold, fontSize: 14, color: C.accentContrast },
+  todayDone: { fontFamily: F.sans, fontSize: 14, color: C.textMuted },
+  todayStrong: { fontFamily: F.sansSemibold, color: C.text },
+  todayMono: { fontFamily: F.mono, color: C.text },
+  todayGhostBtn: {
+    height: 40, paddingHorizontal: 14, borderRadius: R.seg, borderWidth: 1.5, borderColor: C.borderStrong,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  todayGhostText: { fontFamily: F.sansSemibold, fontSize: 13.5, color: C.text },
 
-  reminderCard: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 15, paddingHorizontal: 16, borderRadius: 16, backgroundColor: C.accentSoft, borderWidth: 1.5, borderColor: 'rgba(159,232,112,0.28)', marginBottom: 24 },
-  reminderIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(159,232,112,0.16)', alignItems: 'center', justifyContent: 'center' },
-  reminderText: { flex: 1 },
-  reminderTitle: { fontFamily: F.sansSemibold, fontSize: 14, color: C.text },
-  reminderSub: { fontFamily: F.sans, fontSize: 12.5, color: C.textMuted },
-
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionKicker: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.textSubtle },
-  seeAll: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1, color: C.primary },
-  rows: { gap: 9 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 13, paddingHorizontal: 14, borderRadius: 15, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border },
-  rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rowInfo: { flex: 1, minWidth: 0 },
-  rowTitle: { fontFamily: F.sansSemibold, fontSize: 14.5, color: C.text },
-  rowSub: { fontFamily: F.sans, fontSize: 12, color: C.textSubtle, marginTop: 2 },
-  rowAmt: { fontFamily: F.mono, fontSize: 14.5, fontWeight: '700' },
+  sectionHeader: { marginTop: 28, marginBottom: 4, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  kickerFlat: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle },
+  seeAll: { fontFamily: F.mono, fontSize: 12.5, color: C.primary },
 });
