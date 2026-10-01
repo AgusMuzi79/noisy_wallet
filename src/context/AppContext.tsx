@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { AppState } from 'react-native';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { AppState as RNAppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { requestNotifPermissions, scheduleDailyReminder, cancelDailyReminder } from '../lib/notifications';
@@ -30,10 +30,23 @@ export interface Movement {
   author: string | null;
   date: string;    // ISO date YYYY-MM-DD
   note: string;
+  createdAt: string; // ISO timestamp from DB `created_at` (tie-breaker within a day)
+}
+
+// Input shape for addMovement — id and createdAt are assigned by the DB
+export type NewMovement = Omit<Movement, 'id' | 'createdAt'>;
+
+// A row ready for display. Recurring credits of the same date collapse into one
+// virtual "Ingresos fijos" row; `ids` keeps the original movement ids.
+export interface DisplayMovement extends Movement {
+  ids: string[];
+  grouped: boolean;
+  balanceAfter: number; // all-time running balance right after this row
 }
 
 interface AppState {
   balance: number;
+  initialBalance: number;
   movements: Movement[];
   sources: RecurringSource[];
   categories: Category[];
@@ -49,12 +62,19 @@ interface AppState {
 interface AppContextValue {
   state: AppState;
   loading: boolean;
-  addMovement(mv: Omit<Movement, 'id'>): Promise<void>;
+  // Derived (memoized)
+  monthIncome: number;       // credited fixed income (or active sources until credited) + extras, current month
+  monthExtraIncome: number;  // extra income ('income' type), current month
+  monthSpent: number;        // expenses, current month
+  runningBalance: Record<string, number>; // movement id -> balance after it (all-time, from initial balance)
+  displayMovements: DisplayMovement[];    // newest first, recurring credits grouped per date
+  // Actions
+  addMovement(mv: NewMovement): Promise<string>; // resolves to the inserted id
   deleteMovement(id: string): Promise<void>;
   addSource(s: Omit<RecurringSource, 'id'>): Promise<void>;
   updateSource(id: string, patch: Partial<Omit<RecurringSource, 'id'>>): Promise<void>;
   removeSource(id: string): Promise<void>;
-  addCategory(c: Omit<Category, 'id'>): Promise<void>;
+  addCategory(c: Omit<Category, 'id'>): Promise<string>; // resolves to the inserted id
   updateCategory(id: string, patch: Partial<Omit<Category, 'id'>>): Promise<void>;
   deleteCategory(id: string): Promise<void>;
   setStyle(style: 'lab' | 'calm'): void;
@@ -78,6 +98,7 @@ function rowToMovement(row: any): Movement {
     author: row.author ?? null,
     note: row.note ?? '',
     date: row.date,
+    createdAt: row.created_at ?? '',
   };
 }
 
@@ -92,6 +113,66 @@ function computeBalance(initial: number, movements: Movement[]): number {
   );
 }
 
+// Chronological order: date, then created_at, then id (stable tie-breaker)
+function compareChrono(a: Movement, b: Movement): number {
+  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+// Balance after each movement, walking all movements chronologically from the
+// initial balance. The last value equals `computeBalance(initial, movements)`.
+export function computeRunningBalance(initial: number, movements: Movement[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  let run = initial;
+  for (const m of [...movements].sort(compareChrono)) {
+    run += m.type === 'expense' ? -m.amount : m.amount;
+    map[m.id] = run;
+  }
+  return map;
+}
+
+export const FIXED_INCOME_LABEL = 'Ingresos fijos';
+
+// Collapses `recurring_credit` movements that share a date into one virtual row,
+// preserving the input order (the group sits where its first member appears).
+// Works on any subset (e.g. a filtered history list); balances come from the
+// all-time `runningBalance` map so they stay consistent across filters.
+export function groupRecurringCredits(
+  movements: Movement[],
+  runningBalance: Record<string, number>,
+): DisplayMovement[] {
+  const out: DisplayMovement[] = [];
+  const groups = new Map<string, { row: DisplayMovement; latest: Movement }>();
+  for (const m of movements) {
+    const bal = runningBalance[m.id] ?? 0;
+    if (m.type !== 'recurring_credit') {
+      out.push({ ...m, ids: [m.id], grouped: false, balanceAfter: bal });
+      continue;
+    }
+    const g = groups.get(m.date);
+    if (!g) {
+      const row: DisplayMovement = {
+        ...m, id: `credit-${m.date}`, note: FIXED_INCOME_LABEL, ids: [m.id], grouped: true, balanceAfter: bal,
+      };
+      groups.set(m.date, { row, latest: m });
+      out.push(row);
+      continue;
+    }
+    g.row.ids.push(m.id);
+    g.row.amount += m.amount;
+    // Balance after the group = balance after its chronologically last member
+    if (compareChrono(m, g.latest) > 0) {
+      g.latest = m;
+      g.row.balanceAfter = bal;
+      g.row.createdAt = m.createdAt;
+    }
+  }
+  return out;
+}
+
+const monthPrefix = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STYLE_KEY = '@billetera:style';
@@ -101,6 +182,7 @@ const USER2_KEY = '@billetera:user2';
 
 const DEFAULT_STATE: AppState = {
   balance: 0,
+  initialBalance: 0,
   movements: [],
   sources: [],
   categories: [],
@@ -171,6 +253,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notifEnabled: data.notification_enabled,
       notifHour: data.notification_hour,
       lockPin: data.lock_enabled,
+      initialBalance: initBal,
       balance: computeBalance(initBal, s.movements),
     }));
   }, []);
@@ -218,6 +301,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         movements,
         sources,
         balance: computeBalance(initBal, movements),
+        initialBalance: initBal,
         style: (storedStyle as 'lab' | 'calm') ?? 'lab',
         notifEnabled: settings?.notification_enabled ?? true,
         notifHour: settings?.notification_hour ?? 21,
@@ -251,7 +335,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Re-fetch on foreground (WebSocket may have dropped in background) ────────
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', nextState => {
+    const sub = RNAppState.addEventListener('change', nextState => {
       if (nextState === 'active') {
         refetchTransactions();
         refetchSources();
@@ -279,17 +363,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
-  const addMovement = useCallback(async (mv: Omit<Movement, 'id'>) => {
-    const { error } = await supabase.from('transactions').insert({
-      type: mv.type,
-      amount: mv.amount,
-      category_id: mv.catId ?? null,
-      author: mv.author,
-      note: mv.note || null,
-      date: mv.date,
-    });
+  const addMovement = useCallback(async (mv: NewMovement): Promise<string> => {
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert({
+        type: mv.type,
+        amount: mv.amount,
+        category_id: mv.catId ?? null,
+        author: mv.author,
+        note: mv.note || null,
+        date: mv.date,
+      })
+      .select('id')
+      .single();
     if (error) throw new Error(error.message);
     await refetchTransactions();
+    return data.id as string;
   }, [refetchTransactions]);
 
   const deleteMovement = useCallback(async (id: string) => {
@@ -314,9 +403,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await refetchSources();
   }, [refetchSources]);
 
-  const addCategory = useCallback(async (c: Omit<Category, 'id'>) => {
-    await supabase.from('categories').insert({ name: c.name, icon: c.icon, color: c.color });
+  const addCategory = useCallback(async (c: Omit<Category, 'id'>): Promise<string> => {
+    const { data, error } = await supabase
+      .from('categories')
+      .insert({ name: c.name, icon: c.icon, color: c.color })
+      .select('id')
+      .single();
+    if (error) throw new Error(error.message);
     await refetchCategories();
+    return data.id as string;
   }, [refetchCategories]);
 
   const updateCategory = useCallback(async (id: string, patch: Partial<Omit<Category, 'id'>>) => {
@@ -373,9 +468,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(USER2_KEY, user2);
   }, []);
 
+  // ── Derived data ─────────────────────────────────────────────────────────────
+
+  const currentMonth = monthPrefix(new Date());
+
+  const monthTotals = useMemo(() => {
+    let credited = 0, extra = 0, spent = 0;
+    for (const m of state.movements) {
+      if (!m.date.startsWith(currentMonth)) continue;
+      if (m.type === 'recurring_credit') credited += m.amount;
+      else if (m.type === 'income') extra += m.amount;
+      else spent += m.amount;
+    }
+    // Use what was actually credited this month; source amounts may have changed since.
+    // Fall back to active sources until the month's credit lands.
+    const fixed = credited > 0
+      ? credited
+      : state.sources.filter(s => s.active).reduce((a, s) => a + s.amount, 0);
+    return { income: fixed + extra, extra, spent };
+  }, [state.movements, state.sources, currentMonth]);
+
+  const runningBalance = useMemo(
+    () => computeRunningBalance(state.initialBalance, state.movements),
+    [state.initialBalance, state.movements],
+  );
+
+  const displayMovements = useMemo(
+    () => groupRecurringCredits(state.movements, runningBalance),
+    [state.movements, runningBalance],
+  );
+
   return (
     <AppContext.Provider value={{
       state, loading,
+      monthIncome: monthTotals.income,
+      monthExtraIncome: monthTotals.extra,
+      monthSpent: monthTotals.spent,
+      runningBalance,
+      displayMovements,
       addMovement, deleteMovement,
       addSource, updateSource, removeSource,
       addCategory, updateCategory, deleteCategory,

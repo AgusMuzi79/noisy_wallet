@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, Alert, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -24,8 +24,13 @@ export default function AddCategoryScreen() {
   const save = async () => {
     if (!canSave) return;
     setSaving(true);
-    await addCategory({ name: name.trim(), icon, color });
-    router.back();
+    try {
+      await addCategory({ name: name.trim(), icon, color });
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'No se pudo guardar');
+      setSaving(false);
+    }
   };
 
   return (
