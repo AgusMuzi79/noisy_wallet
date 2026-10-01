@@ -86,9 +86,17 @@ export default function HomeScreen() {
   }, [state.balance]);
 
   const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const recurringIncome = state.sources.filter(s => s.active).reduce((a, s) => a + s.amount, 0);
-  const extraIncome = state.movements
-    .filter(m => m.type === 'income' && m.date.startsWith(currentMonthPrefix))
+  const monthMovements = state.movements.filter(m => m.date.startsWith(currentMonthPrefix));
+  // Use what was actually credited this month; source amounts may have changed since.
+  // Fall back to active sources until the month's credit lands.
+  const creditedIncome = monthMovements
+    .filter(m => m.type === 'recurring_credit')
+    .reduce((a, m) => a + m.amount, 0);
+  const recurringIncome = creditedIncome > 0
+    ? creditedIncome
+    : state.sources.filter(s => s.active).reduce((a, s) => a + s.amount, 0);
+  const extraIncome = monthMovements
+    .filter(m => m.type === 'income')
     .reduce((a, m) => a + m.amount, 0);
   const monthIncome = recurringIncome + extraIncome;
   const ratio = monthIncome > 0 ? Math.max(0, displayBal / monthIncome) : 0;
