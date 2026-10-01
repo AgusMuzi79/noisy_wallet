@@ -32,4 +32,4 @@ Make the home "saldo restante" gauge measure against income actually received th
 - `package-lock.json` in T2 also carries earlier transitive dependency bumps from a prior `npm install`.
 
 ## Next step
-T3: preview build, then verify the gauge shows 100% on the phone.
+T3: preview build, then verify the gauge shows 100% on the phone. Build 848e43d3 was canceled on request (2026-10-01) — more changes coming before building.
