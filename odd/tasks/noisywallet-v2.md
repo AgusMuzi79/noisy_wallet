@@ -28,11 +28,13 @@ The user redesigned the app in Claude Design; v2 also reworks flows (entry sheet
 - [x] T4 — Pill nav: `BottomNav.tsx`, `(tabs)/_layout.tsx`. (commit `b037fbd`; route: delegated writer; tsc no new errors, bottom-tabs import error removed; expo export android bundles)
 - [x] T5 — "Anotar" entry sheet (expense + extra income, projection, inline category create "Crear y usar") + undo toast; retire `add-expense.tsx`. (commit `97bf06f`; route: delegated writer; tsc no new errors (8 base lines), expo export android bundles, `rg add-expense app src` empty)
 - [x] T6 — Home: wordmark, odometer, continuous bar + ghost bite, today strip, 5 recent rows with running balance, row flash. (commit `9287f79`; route: delegated writer; tsc no new errors (8 base lines), expo export android bundles)
-- [ ] T7 — Movimientos: type + author segments, day groups with net, running balance, empty state, keep long-press delete.
-- [ ] T8 — Ingresos: fixed sources list, month extras list, open sheet in extra mode.
-- [ ] T9 — Categorías (share bar, list by month spend, tap → edit) + Nueva categoría (preview tile, contextual back/save).
-- [ ] T10 — Ajustes restyle (order, initials avatars, copy).
-- [ ] T11 — Docs: CLAUDE.md (sheet, icons, tokens, v2 semantics).
+- [x] F1 — fix(dates): device-local `localISODate`/`localMonthPrefix` replace UTC `toISOString()` in EntrySheet, Home, income, `fmtMovDate`, AppContext month scope. Reason: review advisory. (commit `6c914a4`; route: delegated writer; tsc no new errors (8 base lines), expo export android bundles, `rg toISOString app src` → only the warning comment in theme)
+- [x] F2 — fix(sheet): close-animation callback only hides the modal if the sheet is still closed; `deleteMovement` throws on DB error, UndoToast/history show an Alert. Reason: review advisory. (commit `083c434`; route: delegated writer; tsc no new errors (8 base lines))
+- [x] T7 — Movimientos: type + author segments, day groups with net, running balance, empty state, keep long-press delete. (commit `9d59dad`; route: delegated writer; tsc no new errors (8 base lines), expo export android bundles)
+- [x] T8 — Ingresos: fixed sources list, month extras list, open sheet in extra mode. (commit `78c2798`; route: delegated writer; tsc no new errors (8 base lines))
+- [x] T9 — Categorías (share bar, list by month spend, tap → edit) + Nueva categoría (preview tile, contextual back/save). (commit `c37b519`; route: delegated writer; tsc no new errors (8 base lines), expo export android bundles)
+- [x] T10 — Ajustes restyle (order, initials avatars, copy). (commit `3d592ae`; route: delegated writer; tsc no new errors (8 base lines))
+- [x] T11 — Docs: CLAUDE.md (sheet, icons, tokens, v2 semantics). (commit `adf8137`; route: delegated writer; structural readback; final expo export android bundles)
 
 ## Route
 Delegated direct: one bounded writer per batch (2+ non-trivial files per task). Parent verifies and reviews.
@@ -53,5 +55,10 @@ No test runner in the project → no RED/GREEN. Per task: `npx tsc --noEmit` (no
 - T5: sheet state (mode, draft, undo toast, `lastAdded`) lives in `src/context/SheetContext.tsx`; `EntrySheet` + `UndoToast` render once in `app/_layout.tsx`. "Nueva" tile closes the sheet and pushes `/add-category?from=sheet`; add-category reopens the sheet on unmount (save, back or hardware back) keeping the draft and selecting the new category.
 - T6: `Odometer` and `MovementRow` extracted for reuse (T7). Ghost bite triggers on any ratio drop (own entry, partner's Realtime entry or undo of an income). `useReduceMotion` hook in theme.
 
+- T7: grouped "Ingresos fijos" rows long-press delete all their member credits (one confirm). Author filter hides credits (no author); segment hidden when `user2Name` is empty.
+- T8: a zero/empty source amount reverts instead of writing (DB check `amount > 0`).
+- T9: share bar / rows only include active categories; subtitle uses `monthSpent` (all expenses this month). Editor screens duplicate the form (no new shared component file was in scope).
+- T10: settings copy "¿Anotaste…" changed in the UI only; the push body in `src/lib/notifications.ts` still says "¿Registraste…" (out of edit scope).
+
 ## Next step
-T7 (Movimientos) reusing `MovementRow`.
+Parent review of F1–T11; optionally align the notification body copy; then OTA/preview install and on-device check.
