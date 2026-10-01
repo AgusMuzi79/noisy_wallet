@@ -72,16 +72,15 @@ export default function HistoryScreen() {
     const title = isExpense
       ? (state.categories.find(c => c.id === m.catId)?.name ?? 'Otros')
       : (m.note || 'Ingreso extra');
-    const many = m.ids.length > 1;
     Alert.alert(
-      many ? `Eliminar ${m.ids.length} acreditaciones` : 'Eliminar movimiento',
+      'Eliminar movimiento',
       `${isExpense ? '−' : '+'}$${fmtARS(m.amount)} · ${title}`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Eliminar', style: 'destructive',
           onPress: () => {
-            Promise.all(m.ids.map(id => deleteMovement(id)))
+            deleteMovement(m.id)
               .catch((e: any) => Alert.alert('Error al eliminar', e?.message ?? 'No se pudo eliminar'));
           },
         },
@@ -134,7 +133,9 @@ export default function HistoryScreen() {
                 categories={state.categories}
                 showDate={false}
                 divider={i > 0}
-                onLongPress={() => confirmDelete(m)}
+                // Auto credits are not deletable: monthly_credits already marks the month,
+                // so the Edge Function would never re-credit it.
+                onLongPress={m.type === 'recurring_credit' ? undefined : () => confirmDelete(m)}
               />
             ))}
           </View>
