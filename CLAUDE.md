@@ -10,7 +10,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Routing | Expo Router v56 (file-based, `app/` directory) |
 | Backend | Supabase (PostgreSQL + Realtime subscriptions) |
 | Cron job | Supabase Edge Function (`supabase/functions/credit-monthly-income/`) |
-| Biometric + PIN | `expo-local-authentication` + `expo-secure-store` |
 | Push notifications | `expo-notifications` — daily reminder scheduled via `src/lib/notifications.ts` |
 | Builds | Expo EAS (`eas.json`) — dev/preview/production profiles |
 
@@ -41,8 +40,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
 app/
   _layout.tsx               Root stack — fonts, AppProvider, SheetProvider, AuthGate; renders EntrySheet + UndoToast once
   onboarding.tsx            First-launch name setup (shown when user1Name is empty)
-  set-pin.tsx               PIN creation modal (modal, slide_from_bottom)
-  settings.tsx              Ajustes: reminder, names, PIN/biometric toggles
+  settings.tsx              Ajustes: reminder, names
   add-category.tsx          New category (preview tile, icon grid, colours); `?from=sheet` returns to the sheet
   edit-category.tsx         Edit/delete an existing category
   (tabs)/
@@ -62,7 +60,6 @@ src/
   components/MovementRow.tsx Ledger row with running balance (Home + Movimientos)
   components/CategoryIcon.tsx Category icon renderer + CATEGORY_ICONS / CATEGORY_COLORS
   components/BottomNav.tsx  Floating pill nav with centre "Anotar" FAB
-  components/LockScreen.tsx PIN keypad + biometric unlock screen
   lib/supabase.ts           Supabase client (anon key, AsyncStorage session)
   lib/notifications.ts      expo-notifications helpers (request, schedule, cancel daily reminder)
 supabase/
@@ -108,10 +105,9 @@ Always render category icons through `<CategoryIcon>` (never `<Feather>` directl
 `AuthGate` in `_layout.tsx` renders before the Stack:
 1. `loading` → null (splash screen still visible)
 2. `!state.user1Name` → `<OnboardingScreen />` (first launch only, intercepts full screen)
-3. `state.lockPin && locked` → `<LockScreen />` (PIN/biometric gate)
-4. Otherwise → `{children}` (normal app)
+3. Otherwise → `{children}` (normal app)
 
-Re-locks when app goes to background if `lockPin` is enabled.
+There is no PIN/biometric lock: it was removed in October 2026 (unnecessary for an expense app). The `settings.lock_enabled` DB column still exists but is no longer read or written.
 
 ## State management
 
@@ -128,11 +124,10 @@ On mount, the provider fetches all tables in parallel and sets up a Realtime cha
 - `triggerMonthlyCredit()` — internal; calls the Edge Function on day 1 of the month (on mount and on foreground) as a fallback to the cron
 - `setStyle(style)` — device-local visual style preference
 - `saveSettings(patch)` — optimistic local update + writes to `settings` table; reschedules notification if `notifEnabled`/`notifHour` changed
-- `setBio(bio)` — persists biometric preference to AsyncStorage (device-local)
 - `setUserNames(user1, user2)` — persists both names to AsyncStorage (device-local)
 
-Device-local (AsyncStorage): `user1Name`, `user2Name`, `bio`, `style`.
-Supabase-synced: everything else (`notifEnabled`, `notifHour`, `lockPin`, transactions, categories, etc.).
+Device-local (AsyncStorage): `user1Name`, `user2Name`, `style`.
+Supabase-synced: everything else (`notifEnabled`, `notifHour`, transactions, categories, etc.).
 
 ## Domain model & types
 
@@ -155,7 +150,6 @@ RecurringSource { id: string (UUID), name, amount, active }
 - `recurring_sources.amount` has a DB check `amount > 0` — new sources default to `1`, never `0`
 - The cron runs at 03:05 UTC (00:05 ART), schedule `5 3 1 * *`
 - `income.tsx` SourceRow uses local state for name/amount fields and persists on `onEndEditing` to avoid a DB write on every keystroke (an empty/zero amount reverts)
-- PIN is stored in `expo-secure-store` under key `billetera_pin`
 - User names are stored in AsyncStorage under `@billetera:user1` / `@billetera:user2`
 
 ## Supabase setup (one-time)
@@ -206,6 +200,7 @@ eas update --channel preview --message "describe the change"   # ship JS/asset c
 - JS and asset changes ship via OTA; the app downloads the update on launch and applies it on the **next** launch.
 - Native changes (new native module, plugin, permission, icon, `app.json` native config) need a new preview build **and** a bump of `expo.version` — otherwise an OTA could reach a binary that lacks the native code.
 - Only APKs built after `expo-updates` was added (Oct 2026) receive OTA updates.
+- `expo-local-authentication` and `expo-secure-store` remain installed but unused since the PIN/biometric lock was removed (shipped OTA). On the next native rebuild, uninstall both together with their `app.json` plugin entries and biometric permissions, and bump `expo.version`.
 
 ## Gotchas
 

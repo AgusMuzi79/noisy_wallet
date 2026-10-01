@@ -54,8 +54,6 @@ interface AppState {
   style: 'lab' | 'calm';
   notifEnabled: boolean;
   notifHour: number;
-  lockPin: boolean;
-  bio: boolean;
   user1Name: string;
   user2Name: string;
 }
@@ -79,8 +77,7 @@ interface AppContextValue {
   updateCategory(id: string, patch: Partial<Omit<Category, 'id'>>): Promise<void>;
   deleteCategory(id: string): Promise<void>;
   setStyle(style: 'lab' | 'calm'): void;
-  saveSettings(patch: { notifEnabled?: boolean; notifHour?: number; lockPin?: boolean }): Promise<void>;
-  setBio(bio: boolean): void;
+  saveSettings(patch: { notifEnabled?: boolean; notifHour?: number }): Promise<void>;
   setUserNames(user1: string, user2: string): void;
 }
 
@@ -176,7 +173,6 @@ export function groupRecurringCredits(
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STYLE_KEY = '@billetera:style';
-const BIO_KEY = '@billetera:bio';
 const USER1_KEY = '@billetera:user1';
 const USER2_KEY = '@billetera:user2';
 
@@ -189,8 +185,6 @@ const DEFAULT_STATE: AppState = {
   style: 'lab',
   notifEnabled: true,
   notifHour: 21,
-  lockPin: false,
-  bio: false,
   user1Name: '',
   user2Name: '',
 };
@@ -252,7 +246,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...s,
       notifEnabled: data.notification_enabled,
       notifHour: data.notification_hour,
-      lockPin: data.lock_enabled,
       initialBalance: initBal,
       balance: computeBalance(initBal, s.movements),
     }));
@@ -270,7 +263,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         { data: txs },
         { data: settings },
         storedStyle,
-        storedBio,
         storedUser1,
         storedUser2,
       ] = await Promise.all([
@@ -283,7 +275,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           .order('created_at', { ascending: false }),
         supabase.from('settings').select('*').eq('id', 1).single(),
         AsyncStorage.getItem(STYLE_KEY),
-        AsyncStorage.getItem(BIO_KEY),
         AsyncStorage.getItem(USER1_KEY),
         AsyncStorage.getItem(USER2_KEY),
       ]);
@@ -305,8 +296,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         style: (storedStyle as 'lab' | 'calm') ?? 'lab',
         notifEnabled: settings?.notification_enabled ?? true,
         notifHour: settings?.notification_hour ?? 21,
-        lockPin: settings?.lock_enabled ?? false,
-        bio: storedBio === 'true',
         user1Name: storedUser1 ?? '',
         user2Name: storedUser2 ?? '',
       });
@@ -430,18 +419,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STYLE_KEY, style);
   }, []);
 
-  const saveSettings = useCallback(async (patch: { notifEnabled?: boolean; notifHour?: number; lockPin?: boolean }) => {
+  const saveSettings = useCallback(async (patch: { notifEnabled?: boolean; notifHour?: number }) => {
     // Optimistic local update
     setState(s => ({
       ...s,
       ...(patch.notifEnabled !== undefined && { notifEnabled: patch.notifEnabled }),
       ...(patch.notifHour !== undefined && { notifHour: patch.notifHour }),
-      ...(patch.lockPin !== undefined && { lockPin: patch.lockPin }),
     }));
     const dbPatch: Record<string, any> = {};
     if (patch.notifEnabled !== undefined) dbPatch.notification_enabled = patch.notifEnabled;
     if (patch.notifHour !== undefined) dbPatch.notification_hour = patch.notifHour;
-    if (patch.lockPin !== undefined) dbPatch.lock_enabled = patch.lockPin;
     if (Object.keys(dbPatch).length) {
       await supabase.from('settings').update(dbPatch).eq('id', 1);
     }
@@ -456,11 +443,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await cancelDailyReminder();
       }
     }
-  }, []);
-
-  const setBio = useCallback((bio: boolean) => {
-    setState(s => ({ ...s, bio }));
-    AsyncStorage.setItem(BIO_KEY, String(bio));
   }, []);
 
   const setUserNames = useCallback((user1: string, user2: string) => {
@@ -512,7 +494,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addCategory, updateCategory, deleteCategory,
       setStyle,
       saveSettings,
-      setBio,
       setUserNames,
     }}>
       {children}

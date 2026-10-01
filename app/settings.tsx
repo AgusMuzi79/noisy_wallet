@@ -12,21 +12,17 @@ const TIME_OPTS = [
   { label: '22:00', hour: 22 },
 ];
 
-const PIN_KEY = 'billetera_pin';
-
 const initial = (name: string) => (name.trim()[0] || '?').toUpperCase();
 
-function Toggle({ value, onValueChange, disabled, label }: {
+function Toggle({ value, onValueChange, label }: {
   value: boolean;
   onValueChange: (v: boolean) => void;
-  disabled?: boolean;
   label: string;
 }) {
   return (
     <Switch
       value={value}
       onValueChange={onValueChange}
-      disabled={disabled}
       accessibilityLabel={label}
       trackColor={{ false: C.surface2, true: C.primary }}
       thumbColor={C.text}
@@ -35,21 +31,10 @@ function Toggle({ value, onValueChange, disabled, label }: {
 }
 
 export default function SettingsScreen() {
-  const { state, saveSettings, setBio, setUserNames } = useApp();
+  const { state, saveSettings, setUserNames } = useApp();
   const insets = useSafeAreaInsets();
   const [name1, setName1] = useState(state.user1Name);
   const [name2, setName2] = useState(state.user2Name);
-
-  const handlePinToggle = async (v: boolean) => {
-    if (v) {
-      router.push('/set-pin');
-    } else {
-      const SecureStore = await import('expo-secure-store');
-      await SecureStore.deleteItemAsync(PIN_KEY);
-      setBio(false);
-      await saveSettings({ lockPin: false });
-    }
-  };
 
   const saveNames = () => {
     const n1 = name1.trim();
@@ -142,23 +127,6 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Security */}
-        <Text style={[styles.kicker, { marginTop: 30 }]}>// seguridad</Text>
-        <View style={[styles.row, styles.rowTall]}>
-          <Feather name="lock" size={19} color={C.textMuted} />
-          <Text style={[styles.rowTitle, styles.grow]}>Bloqueo con PIN</Text>
-          <Toggle value={state.lockPin} onValueChange={handlePinToggle} label="Bloqueo con PIN" />
-        </View>
-        <View style={[styles.row, styles.rowTall, !state.lockPin && styles.dimmed]}>
-          <View style={styles.iconSpacer} />
-          <Text style={[styles.rowTitle, styles.grow]}>Huella o Face ID</Text>
-          <Toggle
-            value={state.bio}
-            onValueChange={v => setBio(v)}
-            disabled={!state.lockPin}
-            label="Huella o Face ID"
-          />
-        </View>
       </ScrollView>
     </View>
   );
@@ -186,7 +154,6 @@ const styles = StyleSheet.create({
   dimmed: { opacity: 0.4 },
   rowTitle: { fontFamily: F.sansSemibold, fontSize: 15, color: C.text },
   rowDesc: { marginTop: 2, fontFamily: F.sans, fontSize: 12.5, color: C.textSubtle },
-  iconSpacer: { width: 19 },
 
   seg: { flexDirection: 'row', padding: 3, borderRadius: 11, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border },
   segBtn: { height: 40, paddingHorizontal: 10, borderRadius: R.md, alignItems: 'center', justifyContent: 'center' },
