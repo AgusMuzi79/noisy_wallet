@@ -3,20 +3,13 @@ import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Pla
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import CategoryIcon from '../src/components/CategoryIcon';
+import CategoryIcon, { CATEGORY_ICONS, CATEGORY_COLORS } from '../src/components/CategoryIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
 import { C, F, hexAlpha } from '../src/theme';
 
-const ICONS = [
-  'shopping-cart','home','zap','truck','navigation','heart','tag','coffee',
-  'gift','send','book','credit-card','star','music','camera','sun',
-] as const;
-
-const PALETTE = [
-  '#9B7CF0','#9FE870','#2BA597','#E0A52E',
-  '#E5604A','#F5D020','#C3B0F7','#8B83A6',
-];
+const ICONS = CATEGORY_ICONS;
+const PALETTE = CATEGORY_COLORS;
 
 export default function EditCategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -104,7 +97,7 @@ export default function EditCategoryScreen() {
                   onPress={() => setIcon(ic)}
                   style={[styles.iconBtn, on && { backgroundColor: hexAlpha(color, 0.2), borderColor: color }]}
                 >
-                  <Feather name={ic as any} size={21} color={on ? color : C.textMuted} />
+                  <CategoryIcon icon={ic} size={20} color={on ? color : C.textMuted} />
                 </Pressable>
               );
             })}
@@ -150,8 +143,8 @@ const styles = StyleSheet.create({
   fieldLabel: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.8, textTransform: 'uppercase', color: C.textSubtle, marginBottom: 10 },
   nameInput: { backgroundColor: C.surfaceInset, borderWidth: 1.5, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontFamily: F.sans, fontSize: 15, color: C.text, marginBottom: 24 },
 
-  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginBottom: 24 },
-  iconBtn: { width: 46, height: 46, borderRadius: 13, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 9, marginBottom: 24 },
+  iconBtn: { width: '14.5%', aspectRatio: 1, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
 
   colorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11, marginBottom: 30 },
   colorDot: { width: 38, height: 38, borderRadius: 19 },
