@@ -382,7 +382,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [refetchTransactions]);
 
   const deleteMovement = useCallback(async (id: string) => {
-    await supabase.from('transactions').delete().eq('id', id);
+    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    if (error) throw new Error(error.message);
     await refetchTransactions();
   }, [refetchTransactions]);
 

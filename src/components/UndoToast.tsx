@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text } from 'react-native';
+import { Alert, Animated, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { useSheet } from '../context/SheetContext';
@@ -27,7 +27,11 @@ export default function UndoToast() {
     const id = toast.movementId;
     dismissToast();
     markAdded(null);
-    await deleteMovement(id);
+    try {
+      await deleteMovement(id);
+    } catch (e: any) {
+      Alert.alert('No se pudo deshacer', e?.message ?? 'Probá borrarlo desde Movimientos');
+    }
   };
 
   return (

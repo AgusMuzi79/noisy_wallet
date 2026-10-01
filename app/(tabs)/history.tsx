@@ -65,7 +65,9 @@ export default function HistoryScreen() {
               `${sign}$${fmtARS(m.amount)} · ${title}`,
               [
                 { text: 'Cancelar', style: 'cancel' },
-                { text: 'Eliminar', style: 'destructive', onPress: () => deleteMovement(m.id) },
+                { text: 'Eliminar', style: 'destructive', onPress: () => {
+                  deleteMovement(m.id).catch((e: any) => Alert.alert('Error al eliminar', e?.message ?? 'No se pudo eliminar'));
+                } },
               ],
             );
             return (

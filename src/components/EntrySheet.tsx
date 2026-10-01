@@ -58,6 +58,10 @@ export default function EntrySheet() {
   const offY = Dimensions.get('window').height;
   const translateY = useRef(new Animated.Value(offY)).current;
   const scrim = useRef(new Animated.Value(0)).current;
+  // Latest mode, read by the close animation's callback: if the sheet was
+  // reopened while closing, it must not hide the modal afterwards.
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   useEffect(() => {
     if (mode) {
@@ -73,7 +77,7 @@ export default function EntrySheet() {
       Animated.parallel([
         Animated.timing(translateY, { toValue: offY, duration: reduce ? 0 : 280, easing: M.easeInOut, useNativeDriver: true }),
         Animated.timing(scrim, { toValue: 0, duration: reduce ? 0 : 240, useNativeDriver: true }),
-      ]).start(() => setVisible(false));
+      ]).start(() => { if (!modeRef.current) setVisible(false); });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
