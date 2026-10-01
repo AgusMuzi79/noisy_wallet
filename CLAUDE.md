@@ -184,6 +184,18 @@ eas build --profile production --platform android     # Production AAB
 
 The app is only for two people, so the **preview APK is the distribution channel** — a production build is intentionally not planned. App icon changes are embedded in the APK and need a new preview build.
 
+### OTA updates (EAS Update)
+
+`expo-updates` is configured: each build profile maps to a channel of the same name (`eas.json`), and `runtimeVersion` uses the `appVersion` policy (runtime = `expo.version` in `app.json`).
+
+```bash
+eas update --channel preview --message "describe the change"   # ship JS/asset changes to installed preview APKs
+```
+
+- JS and asset changes ship via OTA; the app downloads the update on launch and applies it on the **next** launch.
+- Native changes (new native module, plugin, permission, icon, `app.json` native config) need a new preview build **and** a bump of `expo.version` — otherwise an OTA could reach a binary that lacks the native code.
+- Only APKs built after `expo-updates` was added (Oct 2026) receive OTA updates.
+
 ## Gotchas
 
 - **Duplicate route files**: The initial scaffold created placeholder stubs in `app/(tabs)/` (e.g. `settings.tsx`, `add-income.tsx`). These were deleted. If a screen appears blank or shows wrong content, run `Get-ChildItem app -Recurse` to check for accidental duplicate route files before touching any component code.

@@ -41,6 +41,12 @@
       "expo-splash-screen"
     ],
     "scheme": "noisy-wallet",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/49289177-79f6-4907-a93d-4bcd22041a43"
+    },
     "experiments": {
       "typedRoutes": true
     },
