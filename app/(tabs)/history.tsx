@@ -1,108 +1,175 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '../../src/context/AppContext';
-import { C, F, fmtARS, fmtMovDate, hexAlpha } from '../../src/theme';
-import CategoryIcon from '../../src/components/CategoryIcon';
+import { DisplayMovement, groupRecurringCredits, useApp } from '../../src/context/AppContext';
+import { C, F, R, fmtARS, fmtMovDate } from '../../src/theme';
+import MovementRow from '../../src/components/MovementRow';
 
-type Filter = 'all' | 'exp' | 'inc';
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'TODOS' },
-  { id: 'exp', label: 'GASTOS' },
-  { id: 'inc', label: 'INGRESOS' },
-];
+type TypeFilter = 'all' | 'exp' | 'inc';
+type WhoFilter = 'all' | 'u1' | 'u2';
+
+interface DayGroup {
+  date: string;
+  rows: DisplayMovement[];
+  net: number;
+}
+
+function Segmented<T extends string>({ options, value, onChange }: {
+  options: { id: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <View style={styles.seg}>
+      {options.map(o => {
+        const on = value === o.id;
+        return (
+          <Pressable
+            key={o.id}
+            onPress={() => onChange(o.id)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            style={[styles.segBtn, on && styles.segBtnOn]}
+          >
+            <Text style={[styles.segText, on && styles.segTextOn]} numberOfLines={1}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function HistoryScreen() {
-  const { state, deleteMovement } = useApp();
+  const { state, monthIncome, monthSpent, runningBalance, deleteMovement } = useApp();
   const insets = useSafeAreaInsets();
-  const [filter, setFilter] = useState<Filter>('all');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [whoFilter, setWhoFilter] = useState<WhoFilter>('all');
 
-  const filtered = state.movements.filter(m => {
-    if (filter === 'exp') return m.type === 'expense';
-    if (filter === 'inc') return m.type !== 'expense';
-    return true;
-  });
+  const { user1Name, user2Name } = state;
+  const showWho = !!user2Name;
+  // Author filter matches the current names; credits (no author) only show under "Ambos"
+  const whoName = !showWho || whoFilter === 'all' ? null : whoFilter === 'u1' ? user1Name : user2Name;
+
+  const groups = useMemo(() => {
+    const filtered = state.movements.filter(m => {
+      if (typeFilter === 'exp' && m.type !== 'expense') return false;
+      if (typeFilter === 'inc' && m.type === 'expense') return false;
+      if (whoName !== null && m.author !== whoName) return false;
+      return true;
+    });
+    const out: DayGroup[] = [];
+    for (const m of groupRecurringCredits(filtered, runningBalance)) {
+      let g = out[out.length - 1];
+      if (!g || g.date !== m.date) { g = { date: m.date, rows: [], net: 0 }; out.push(g); }
+      g.rows.push(m);
+      g.net += m.type === 'expense' ? -m.amount : m.amount;
+    }
+    return out;
+  }, [state.movements, runningBalance, typeFilter, whoName]);
+
+  const confirmDelete = (m: DisplayMovement) => {
+    const isExpense = m.type === 'expense';
+    const title = isExpense
+      ? (state.categories.find(c => c.id === m.catId)?.name ?? 'Otros')
+      : (m.note || 'Ingreso extra');
+    const many = m.ids.length > 1;
+    Alert.alert(
+      many ? `Eliminar ${m.ids.length} acreditaciones` : 'Eliminar movimiento',
+      `${isExpense ? '−' : '+'}$${fmtARS(m.amount)} · ${title}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar', style: 'destructive',
+          onPress: () => {
+            Promise.all(m.ids.map(id => deleteMovement(id)))
+              .catch((e: any) => Alert.alert('Error al eliminar', e?.message ?? 'No se pudo eliminar'));
+          },
+        },
+      ],
+    );
+  };
 
   return (
-    <LinearGradient colors={['#1B1726', '#0F0D15']} style={styles.flex}>
-      <View style={[styles.flex, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Historial</Text>
-        </View>
+    <View style={[styles.flex, { paddingTop: insets.top }]}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <Text style={styles.title}>Movimientos</Text>
+        <Text style={styles.subtitle}>
+          Entró <Text style={[styles.mono, { color: C.accent }]}>${fmtARS(monthIncome)}</Text>
+          {' · '}salió <Text style={[styles.mono, { color: C.text }]}>${fmtARS(monthSpent)}</Text>
+        </Text>
 
         <View style={styles.filters}>
-          {FILTERS.map(f => (
-            <Pressable
-              key={f.id}
-              onPress={() => setFilter(f.id)}
-              style={[styles.filterChip, filter === f.id && styles.filterActive]}
-            >
-              <Text style={[styles.filterText, filter === f.id && styles.filterTextActive]}>
-                {f.label}
-              </Text>
-            </Pressable>
-          ))}
+          <Segmented
+            value={typeFilter}
+            onChange={setTypeFilter}
+            options={[
+              { id: 'all', label: 'Todo' },
+              { id: 'exp', label: 'Gastos' },
+              { id: 'inc', label: 'Ingresos' },
+            ]}
+          />
+          {showWho && (
+            <Segmented
+              value={whoFilter}
+              onChange={setWhoFilter}
+              options={[
+                { id: 'all', label: 'Ambos' },
+                { id: 'u1', label: user1Name },
+                { id: 'u2', label: user2Name },
+              ]}
+            />
+          )}
         </View>
 
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {filtered.map(m => {
-            const cat = state.categories.find(c => c.id === m.catId);
-            let title = '', icon = 'credit-card', color: string = C.textMuted, amtColor: string = C.danger, sign = '−';
-            if (m.type === 'recurring_credit') {
-              title = 'Acreditación mensual'; icon = 'trending-up'; color = C.primary; amtColor = C.accent; sign = '+';
-            } else if (m.type === 'income') {
-              title = m.note || 'Ingreso extra'; icon = 'trending-up'; color = C.accent; amtColor = C.accent; sign = '+';
-            } else {
-              title = cat?.name ?? 'Otros'; icon = cat?.icon ?? 'credit-card'; color = cat?.color ?? C.textMuted; amtColor = C.danger; sign = '−';
-            }
-            const who = m.author ? `${m.author} · ` : '';
-            const dateLabel = fmtMovDate(m.date);
-            const sub = m.note && m.type !== 'income' ? `${who}${m.note} · ${dateLabel}` : `${who}${dateLabel}`;
-            const confirmDelete = () => Alert.alert(
-              'Eliminar movimiento',
-              `${sign}$${fmtARS(m.amount)} · ${title}`,
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Eliminar', style: 'destructive', onPress: () => {
-                  deleteMovement(m.id).catch((e: any) => Alert.alert('Error al eliminar', e?.message ?? 'No se pudo eliminar'));
-                } },
-              ],
-            );
-            return (
-              <Pressable key={m.id} style={styles.row} onLongPress={confirmDelete} delayLongPress={400}>
-                <View style={[styles.rowIcon, { backgroundColor: hexAlpha(color, 0.15) }]}>
-                  <CategoryIcon icon={icon} size={20} color={color} />
-                </View>
-                <View style={styles.rowInfo}>
-                  <Text style={styles.rowTitle}>{title}</Text>
-                  <Text style={styles.rowSub}>{sub}</Text>
-                </View>
-                <Text style={[styles.rowAmt, { color: amtColor }]}>{sign}${fmtARS(m.amount)}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-    </LinearGradient>
+        {groups.map(g => (
+          <View key={g.date} style={styles.group}>
+            <View style={styles.groupHead}>
+              <Text style={styles.groupText}>{fmtMovDate(g.date)}</Text>
+              <Text style={styles.groupText}>{g.net < 0 ? '−' : '+'}${fmtARS(g.net)}</Text>
+            </View>
+            {g.rows.map((m, i) => (
+              <MovementRow
+                key={m.id}
+                m={m}
+                categories={state.categories}
+                showDate={false}
+                divider={i > 0}
+                onLongPress={() => confirmDelete(m)}
+              />
+            ))}
+          </View>
+        ))}
+
+        {groups.length === 0 && (
+          <Text style={styles.empty}>// nada por acá con esos filtros</Text>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  header: { paddingHorizontal: 22, marginTop: 8, marginBottom: 18 },
-  title: { fontFamily: F.display, fontSize: 26, color: C.text },
-  filters: { flexDirection: 'row', gap: 7, paddingHorizontal: 22, marginBottom: 16 },
-  filterChip: { paddingVertical: 8, paddingHorizontal: 15, borderRadius: 11, borderWidth: 1.5, borderColor: C.border },
-  filterActive: { backgroundColor: C.primary, borderColor: C.primary },
-  filterText: { fontFamily: F.mono, fontSize: 11.5, letterSpacing: 0.6, color: C.textMuted },
-  filterTextActive: { color: C.primaryContrast },
-  list: { paddingHorizontal: 22, paddingBottom: 110, gap: 9 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 13, paddingHorizontal: 14, borderRadius: 15, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border },
-  rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rowInfo: { flex: 1 },
-  rowTitle: { fontFamily: F.sansSemibold, fontSize: 14.5, color: C.text },
-  rowSub: { fontFamily: F.sans, fontSize: 12, color: C.textSubtle, marginTop: 2 },
-  rowAmt: { fontFamily: F.mono, fontSize: 14.5, fontWeight: '700' },
+  flex: { flex: 1, backgroundColor: C.bg },
+  // Bottom padding clears the floating pill nav
+  scroll: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 120 },
+  mono: { fontFamily: F.mono },
+
+  title: { marginTop: 14, fontFamily: F.display, fontSize: 32, letterSpacing: -0.6, color: C.text },
+  subtitle: { marginTop: 6, fontFamily: F.sans, fontSize: 13.5, color: C.textMuted },
+
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 20, marginBottom: 6 },
+  seg: { flexDirection: 'row', padding: 3, borderRadius: 11, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border },
+  segBtn: { height: 40, paddingHorizontal: 12, borderRadius: R.md, alignItems: 'center', justifyContent: 'center', maxWidth: 110 },
+  segBtnOn: { backgroundColor: C.primary },
+  segText: { fontFamily: F.sansSemibold, fontSize: 13, color: C.textMuted },
+  segTextOn: { color: C.primaryContrast },
+
+  group: { marginTop: 18 },
+  groupHead: {
+    flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 8,
+    borderBottomWidth: 1.5, borderBottomColor: C.border,
+  },
+  groupText: { fontFamily: F.mono, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: C.textSubtle },
+
+  empty: { paddingVertical: 48, textAlign: 'center', fontFamily: F.mono, fontSize: 12.5, color: C.textSubtle },
 });
