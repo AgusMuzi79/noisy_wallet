@@ -1,4 +1,5 @@
-import { Easing } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo, Easing } from 'react-native';
 
 // NoisyDev design system tokens — dark default
 export const C = {
@@ -43,6 +44,7 @@ export const C = {
   info: '#2BA597',
   textInverse: '#16131D',
   shadow: '#000000',
+  scrim: 'rgba(8, 6, 12, 0.62)',
 } as const;
 
 // Font family names — must match names registered via useFonts
@@ -93,7 +95,22 @@ export const M = {
   slow: 360,
 } as const;
 
-export const hexAlpha = (hex: string, a: number) => {
+// True when the OS "reduce motion" setting is on; animations should jump to
+// their end state instead of playing.
+export function useReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(v => { if (mounted) setReduce(v); })
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
+    return () => { mounted = false; sub.remove(); };
+  }, []);
+  return reduce;
+}
+
+export const hexAlpha =(hex: string, a: number) => {
   const h = hex.replace('#', '');
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);

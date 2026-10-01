@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { C, R } from '../theme';
+import { useSheet } from '../context/SheetContext';
 
 // Props expo-router's <Tabs> passes to a custom tab bar (avoids a direct
 // dependency on @react-navigation/bottom-tabs types)
@@ -19,6 +20,7 @@ const TABS = [
 // Floating pill nav: four icon tabs around a centre accent FAB
 export default function BottomNav({ state, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
+  const { openSheet } = useSheet();
   const bottom = Math.max(insets.bottom, 8) + 16;
   const activeRoute = state.routes[state.index]?.name;
 
@@ -44,7 +46,7 @@ export default function BottomNav({ state, navigation }: TabBarProps) {
         {TABS.slice(0, 2).map(renderTab)}
 
         <Pressable
-          onPress={() => router.push('/add-expense')}
+          onPress={() => openSheet('expense')}
           accessibilityRole="button"
           accessibilityLabel="Anotar gasto"
           style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}

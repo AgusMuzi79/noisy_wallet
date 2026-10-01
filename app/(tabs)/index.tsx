@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp, Movement } from '../../src/context/AppContext';
 import { C, F, fmtARS, fmtMovDate, hexAlpha } from '../../src/theme';
 import CategoryIcon from '../../src/components/CategoryIcon';
+import { useSheet } from '../../src/context/SheetContext';
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const now = new Date();
@@ -44,6 +45,7 @@ function MovRow({ m, categories }: { m: Movement; categories: any[] }) {
 
 export default function HomeScreen() {
   const { state } = useApp();
+  const { openSheet } = useSheet();
   const insets = useSafeAreaInsets();
   const balAnim = useRef(new Animated.Value(state.balance)).current;
   const [displayBal, setDisplayBal] = useState(state.balance);
@@ -158,7 +160,7 @@ export default function HomeScreen() {
 
           {/* Reminder card */}
           {state.notifEnabled && !hasExpenseToday && (
-            <Pressable onPress={() => router.push('/add-expense')} style={styles.reminderCard}>
+            <Pressable onPress={() => openSheet('expense')} style={styles.reminderCard}>
               <View style={styles.reminderIcon}>
                 <Feather name="bell" size={19} color={C.accent} />
               </View>

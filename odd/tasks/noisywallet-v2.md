@@ -26,7 +26,7 @@ The user redesigned the app in Claude Design; v2 also reworks flows (entry sheet
 - [x] T2 — Icons: 18-icon set via `CategoryIcon` (Feather + `mci:` MaterialCommunityIcons), palette order; `add-category.tsx`, `edit-category.tsx`. (commit `1757d89`; route: delegated writer; tsc no new errors)
 - [x] T3 — Context data API: `addMovement`/`addCategory` return id; expose `createdAt`; month selectors; running balance; grouped recurring credits helper. (commit `f18af69`; route: delegated writer; tsc no new errors, TS2440 fixed; running-balance/grouping checked with a node script)
 - [x] T4 — Pill nav: `BottomNav.tsx`, `(tabs)/_layout.tsx`. (commit `b037fbd`; route: delegated writer; tsc no new errors, bottom-tabs import error removed; expo export android bundles)
-- [ ] T5 — "Anotar" entry sheet (expense + extra income, projection, inline category create "Crear y usar") + undo toast; retire `add-expense.tsx`.
+- [x] T5 — "Anotar" entry sheet (expense + extra income, projection, inline category create "Crear y usar") + undo toast; retire `add-expense.tsx`. (route: delegated writer; tsc no new errors (8 base lines), expo export android bundles, `rg add-expense app src` empty)
 - [ ] T6 — Home: wordmark, odometer, continuous bar + ghost bite, today strip, 5 recent rows with running balance, row flash.
 - [ ] T7 — Movimientos: type + author segments, day groups with net, running balance, empty state, keep long-press delete.
 - [ ] T8 — Ingresos: fixed sources list, month extras list, open sheet in extra mode.

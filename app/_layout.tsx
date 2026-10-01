@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { AppState as RNAppState } from 'react-native';
+import { AppState as RNAppState, View } from 'react-native';
 import { useFonts, DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
 import {
   SpaceGrotesk_400Regular,
@@ -12,7 +12,11 @@ import {
 import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppProvider, useApp } from '../src/context/AppContext';
+import { SheetProvider } from '../src/context/SheetContext';
 import { LockScreen } from '../src/components/LockScreen';
+import EntrySheet from '../src/components/EntrySheet';
+import UndoToast from '../src/components/UndoToast';
+import { C } from '../src/theme';
 import OnboardingScreen from './onboarding';
 
 SplashScreen.preventAutoHideAsync();
@@ -66,16 +70,22 @@ export default function RootLayout() {
 
   return (
     <AppProvider>
-      <StatusBar style="light" />
-      <AuthGate>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#16131D' } }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="add-expense" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="settings" options={{ headerShown: false }} />
-          <Stack.Screen name="add-category" options={{ headerShown: false }} />
-          <Stack.Screen name="set-pin" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-        </Stack>
-      </AuthGate>
+      <SheetProvider>
+        <StatusBar style="light" />
+        <AuthGate>
+          <View style={{ flex: 1, backgroundColor: C.bg }}>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg } }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="settings" options={{ headerShown: false }} />
+              <Stack.Screen name="add-category" options={{ headerShown: false }} />
+              <Stack.Screen name="set-pin" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            </Stack>
+            {/* Global "Anotar" sheet + undo toast, opened from any screen via useSheet() */}
+            <EntrySheet />
+            <UndoToast />
+          </View>
+        </AuthGate>
+      </SheetProvider>
     </AppProvider>
   );
 }

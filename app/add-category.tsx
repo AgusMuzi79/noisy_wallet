@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, Alert, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CategoryIcon, { CATEGORY_ICONS, CATEGORY_COLORS } from '../src/components/CategoryIcon';
 import { useApp } from '../src/context/AppContext';
+import { useSheet } from '../src/context/SheetContext';
 import { C, F, hexAlpha } from '../src/theme';
 
 const ICONS = CATEGORY_ICONS;
@@ -13,7 +14,19 @@ const PALETTE = CATEGORY_COLORS;
 
 export default function AddCategoryScreen() {
   const { addCategory } = useApp();
+  const { openSheet } = useSheet();
   const insets = useSafeAreaInsets();
+  // Opened from the entry sheet's "Nueva" tile: leaving (save, back button or
+  // hardware back) reopens the sheet with its draft, using the new category.
+  const fromSheet = useLocalSearchParams<{ from?: string }>().from === 'sheet';
+  const createdId = useRef<string | null>(null);
+  const openSheetRef = useRef(openSheet);
+  openSheetRef.current = openSheet;
+  useEffect(() => () => {
+    if (fromSheet) {
+      openSheetRef.current('expense', { keepDraft: true, catId: createdId.current ?? undefined });
+    }
+  }, [fromSheet]);
   const [name, setName] = useState('');
   const [icon, setIcon] = useState<string>(ICONS[0]);
   const [color, setColor] = useState(PALETTE[0]);
@@ -25,7 +38,7 @@ export default function AddCategoryScreen() {
     if (!canSave) return;
     setSaving(true);
     try {
-      await addCategory({ name: name.trim(), icon, color });
+      createdId.current = await addCategory({ name: name.trim(), icon, color });
       router.back();
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'No se pudo guardar');
@@ -36,10 +49,20 @@ export default function AddCategoryScreen() {
   return (
     <LinearGradient colors={['#1B1726', '#0F0D15']} style={[styles.flex, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityLabel={fromSheet ? 'Volver al gasto' : 'Volver'}
+        >
           <Feather name="chevron-left" size={20} color={C.text} />
         </Pressable>
-        <Text style={styles.screenTitle}>nueva categoría</Text>
+        {fromSheet ? (
+          <Pressable onPress={() => router.back()}>
+            <Text style={styles.backLabel}>Volver al gasto</Text>
+          </Pressable>
+        ) : (
+          <Text style={styles.screenTitle}>nueva categoría</Text>
+        )}
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -96,7 +119,7 @@ export default function AddCategoryScreen() {
         </View>
 
         <Pressable onPress={save} style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]} disabled={!canSave}>
-          <Text style={styles.saveBtnText}>{saving ? 'Guardando…' : 'Guardar categoría'}</Text>
+          <Text style={styles.saveBtnText}>{saving ? 'Guardando…' : fromSheet ? 'Crear y usar' : 'Guardar categoría'}</Text>
         </Pressable>
       </ScrollView>
       </KeyboardAvoidingView>
@@ -108,6 +131,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 22, marginTop: 8, marginBottom: 22 },
   backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  backLabel: { fontFamily: F.sansSemibold, fontSize: 14, color: C.textMuted },
   screenTitle: { fontFamily: F.mono, fontSize: 12, letterSpacing: 1.8, textTransform: 'uppercase', color: C.textSubtle },
 
   scroll: { paddingHorizontal: 22, paddingBottom: 40 },
