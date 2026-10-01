@@ -30,7 +30,7 @@ export async function scheduleDailyReminder(hour: number): Promise<void> {
     identifier: DAILY_REMINDER_ID,
     content: {
       title: 'Billetera compartida',
-      body: '¿Registraste los gastos de hoy?',
+      body: '¿Anotaste los gastos de hoy?',
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
