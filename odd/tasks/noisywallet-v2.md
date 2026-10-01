@@ -22,10 +22,10 @@ The user redesigned the app in Claude Design; v2 also reworks flows (entry sheet
 - Ignore the design frame bg `#0E0C13`.
 
 ## Tasks
-- [x] T1 — Theme tokens + fonts: radii `R`, spacing, motion, `F.monoBold`, hover colours in `src/theme/index.ts`; load `SpaceMono_700Bold` in `app/_layout.tsx`. (route: delegated writer; tsc no new errors)
-- [x] T2 — Icons: 18-icon set via `CategoryIcon` (Feather + `mci:` MaterialCommunityIcons), palette order; `add-category.tsx`, `edit-category.tsx`. (route: delegated writer; tsc no new errors)
-- [x] T3 — Context data API: `addMovement`/`addCategory` return id; expose `createdAt`; month selectors; running balance; grouped recurring credits helper. (route: delegated writer; tsc no new errors, TS2440 fixed; running-balance/grouping checked with a node script)
-- [x] T4 — Pill nav: `BottomNav.tsx`, `(tabs)/_layout.tsx`. (route: delegated writer; tsc no new errors, bottom-tabs import error removed; expo export android bundles)
+- [x] T1 — Theme tokens + fonts: radii `R`, spacing, motion, `F.monoBold`, hover colours in `src/theme/index.ts`; load `SpaceMono_700Bold` in `app/_layout.tsx`. (commit `6ccee35`; route: delegated writer; tsc no new errors)
+- [x] T2 — Icons: 18-icon set via `CategoryIcon` (Feather + `mci:` MaterialCommunityIcons), palette order; `add-category.tsx`, `edit-category.tsx`. (commit `1757d89`; route: delegated writer; tsc no new errors)
+- [x] T3 — Context data API: `addMovement`/`addCategory` return id; expose `createdAt`; month selectors; running balance; grouped recurring credits helper. (commit `f18af69`; route: delegated writer; tsc no new errors, TS2440 fixed; running-balance/grouping checked with a node script)
+- [x] T4 — Pill nav: `BottomNav.tsx`, `(tabs)/_layout.tsx`. (commit `b037fbd`; route: delegated writer; tsc no new errors, bottom-tabs import error removed; expo export android bundles)
 - [ ] T5 — "Anotar" entry sheet (expense + extra income, projection, inline category create "Crear y usar") + undo toast; retire `add-expense.tsx`.
 - [ ] T6 — Home: wordmark, odometer, continuous bar + ghost bite, today strip, 5 recent rows with running balance, row flash.
 - [ ] T7 — Movimientos: type + author segments, day groups with net, running balance, empty state, keep long-press delete.
@@ -47,5 +47,8 @@ No test runner in the project → no RED/GREEN. Per task: `npx tsc --noEmit` (no
 - Branch `feat/noisywallet-v2` from `feat/gauge-credited-income-ota` (`d13df32`).
 - Design map produced (read-only exploration worker).
 
+- T1–T4 done (foundations). Pill nav is absolutely positioned; tab screens keep their 110px bottom padding until restyled in T6–T9.
+- `addCategory` now throws on insert error; `add-category.tsx` shows an Alert instead of silently going back.
+
 ## Next step
-T1–T4 (foundations) with one writer.
+T5 (entry sheet + undo toast).
