@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { SheetMode, useSheet } from '../context/SheetContext';
-import { C, F, M, R, fmtARS, hexAlpha, useReduceMotion } from '../theme';
+import { C, F, M, R, fmtARS, hexAlpha, localISODate, useReduceMotion } from '../theme';
 import CategoryIcon from './CategoryIcon';
 
 const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '000', '0', 'del'];
@@ -44,7 +44,6 @@ function pressKey(raw: string, k: string): string {
   return r.replace(/^0+/, '').slice(0, MAX_DIGITS);
 }
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function EntrySheet() {
   const { state, monthIncome, addMovement } = useApp();
@@ -110,8 +109,8 @@ export default function EntrySheet() {
     try {
       const note = draft.note.trim();
       const id = await addMovement(isExp
-        ? { type: 'expense', catId: selCat!, amount: amt, author, date: todayISO(), note }
-        : { type: 'income', amount: amt, author, date: todayISO(), note: note || 'Ingreso extra' });
+        ? { type: 'expense', catId: selCat!, amount: amt, author, date: localISODate(), note }
+        : { type: 'income', amount: amt, author, date: localISODate(), note: note || 'Ingreso extra' });
       const label = isExp ? (state.categories.find(c => c.id === selCat)?.name ?? 'Otros') : 'ingreso extra';
       closeSheet();
       resetDraft();

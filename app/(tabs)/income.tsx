@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp, RecurringSource } from '../../src/context/AppContext';
-import { C, F, fmtARS } from '../../src/theme';
+import { C, F, fmtARS, localISODate } from '../../src/theme';
 
 // ── Source card with local edit state ────────────────────────────────────────
 
@@ -78,7 +78,7 @@ export default function IncomeScreen() {
         type: 'income',
         amount: extraVal,
         author: state.user1Name || 'Agus',
-        date: new Date().toISOString().slice(0, 10),
+        date: localISODate(),
         note: extraNote.trim() || 'Ingreso extra',
       });
       setExtraRaw('');

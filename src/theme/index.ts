@@ -123,9 +123,22 @@ export const fmtARS = (n: number) =>
     .toString()
     .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+// Device-local calendar date as YYYY-MM-DD. Never use toISOString() for dates:
+// it is UTC, so after 21:00 in Argentina it already returns tomorrow.
+export const localISODate = (d: Date = new Date()) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+// Device-local month prefix (YYYY-MM) to match movement dates of that month
+export const localMonthPrefix = (d: Date = new Date()) => localISODate(d).slice(0, 7);
+
+export const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
 export function fmtMovDate(isoDate: string): string {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const yesterdayStr = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const now = new Date();
+  const todayStr = localISODate(now);
+  const yesterdayStr = localISODate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
   if (isoDate === todayStr) return 'Hoy';
   if (isoDate === yesterdayStr) return 'Ayer';
   const d = new Date(isoDate + 'T12:00:00');

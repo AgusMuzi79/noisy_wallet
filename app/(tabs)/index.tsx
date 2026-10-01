@@ -5,12 +5,11 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../src/context/AppContext';
 import { useSheet } from '../../src/context/SheetContext';
-import { C, F, M, R, fmtARS, useReduceMotion } from '../../src/theme';
+import { C, F, M, MONTHS_ES, R, fmtARS, localISODate, useReduceMotion } from '../../src/theme';
 import Odometer from '../../src/components/Odometer';
 import MovementRow from '../../src/components/MovementRow';
 import { BlinkCursor, levelColor } from '../../src/components/EntrySheet';
 
-const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const GHOST_HOLD_MS = 650;
 const RECENT_COUNT = 5;
 
@@ -63,7 +62,7 @@ export default function HomeScreen() {
 
   const now = new Date();
   const monthName = MONTHS_ES[now.getMonth()];
-  const today = now.toISOString().slice(0, 10); // same convention as new entries
+  const today = localISODate(now); // same device-local convention as new entries
   const todayExpenses = state.movements.filter(m => m.type === 'expense' && m.date === today);
   const todaySpent = todayExpenses.reduce((a, m) => a + m.amount, 0);
   const recent = displayMovements.slice(0, RECENT_COUNT);

@@ -3,6 +3,7 @@ import { AppState as RNAppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { requestNotifPermissions, scheduleDailyReminder, cancelDailyReminder } from '../lib/notifications';
+import { localMonthPrefix } from '../theme';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,7 +172,6 @@ export function groupRecurringCredits(
   return out;
 }
 
-const monthPrefix = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -470,7 +470,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Derived data ─────────────────────────────────────────────────────────────
 
-  const currentMonth = monthPrefix(new Date());
+  const currentMonth = localMonthPrefix();
 
   const monthTotals = useMemo(() => {
     let credited = 0, extra = 0, spent = 0;
