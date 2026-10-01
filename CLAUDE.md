@@ -45,6 +45,7 @@ app/
   settings.tsx              Ajustes: names, notification time, PIN/biometric toggles
   add-expense.tsx           Keypad modal for logging an expense
   add-category.tsx          Name + icon + color picker for new category
+  edit-category.tsx         Edit/delete an existing category
   (tabs)/
     _layout.tsx             Tab navigator with custom BottomNav
     index.tsx               Home: balance hero (Lab mode) + recent movements
@@ -54,6 +55,8 @@ app/
 src/
   theme/index.ts            Design tokens (C = colors, F = fonts, fmtARS, fmtMovDate, hexAlpha)
   context/AppContext.tsx    Global state — Supabase queries + Realtime, async action functions
+  types/index.ts            Shared types (Category, Movement, RecurringSource)
+  components/CategoryIcon.tsx Renders a category icon (Feather name or legacy emoji)
   components/BottomNav.tsx  Custom tab bar with elevated centre FAB
   components/LockScreen.tsx PIN keypad + biometric unlock screen
   lib/supabase.ts           Supabase client (anon key, AsyncStorage session)
@@ -80,6 +83,7 @@ Use `fmtARS(n)` for ARS amounts and `fmtMovDate(isoDate)` to display dates as 'H
 Icons: `Feather` from `@expo/vector-icons` — already bundled with Expo SDK, no extra install.
 `LockScreen.tsx` uses `MaterialCommunityIcons` (also from `@expo/vector-icons`).
 Category icons are stored as Feather icon name strings (e.g. `'shopping-cart'`), not emojis.
+Always render category icons through `<CategoryIcon>` (never `<Feather>` directly): it draws a Feather icon when the value matches `/^[a-z][a-z0-9-]+$/` and falls back to an emoji `<Text>` for legacy DB rows.
 
 ## Home screen — Lab mode (permanent)
 
@@ -109,7 +113,9 @@ On mount, the provider fetches all tables in parallel and sets up a Realtime cha
 - `addMovement(mv)` — inserts into `transactions`, refetches
 - `deleteMovement(id)` — deletes from `transactions`, refetches
 - `addSource(s)` / `updateSource(id, patch)` / `removeSource(id)` — recurring sources CRUD
-- `addCategory(c)` — inserts into `categories`, refetches
+- `addCategory(c)` / `updateCategory(id, patch)` / `deleteCategory(id)` — categories CRUD. `edit-category.tsx` navigates back via a `useEffect` when the category disappears, so `deleteCategory` must not call `router.back()` itself
+- `triggerMonthlyCredit()` — internal; calls the Edge Function on day 1 of the month (on mount and on foreground) as a fallback to the cron
+- `setStyle(style)` — device-local visual style preference
 - `saveSettings(patch)` — optimistic local update + writes to `settings` table; reschedules notification if `notifEnabled`/`notifHour` changed
 - `setBio(bio)` — persists biometric preference to AsyncStorage (device-local)
 - `setUserNames(user1, user2)` — persists both names to AsyncStorage (device-local)
@@ -135,7 +141,8 @@ RecurringSource { id: string (UUID), name, amount, active }
 
 - Currency: ARS only, nominal amounts, no conversion logic
 - `settings` table is a singleton (always `id = 1`)
-- The cron runs at 03:05 UTC (00:05 ART)
+- `recurring_sources.amount` has a DB check `amount > 0` — new sources default to `1`, never `0`
+- The cron runs at 03:05 UTC (00:05 ART), schedule `5 3 1 * *`
 - `income.tsx` SourceCard uses local state for name/amount fields and persists on `onEndEditing` to avoid a DB write on every keystroke
 - PIN is stored in `expo-secure-store` under key `billetera_pin`
 - User names are stored in AsyncStorage under `@billetera:user1` / `@billetera:user2`
@@ -150,7 +157,22 @@ RecurringSource { id: string (UUID), name, amount, active }
    ```
 3. Enable **pg_cron** and **pg_net** extensions in the dashboard.
 4. Deploy the Edge Function: `npx supabase functions deploy credit-monthly-income`.
-5. Uncomment and run the `cron.schedule(...)` block at the bottom of `schema.sql`.
+5. Create the Vault secrets `supabase_url` and `service_role_key` (legacy service_role JWT), then uncomment and run the `cron.schedule(...)` block at the bottom of `schema.sql`. The job reads both values from `vault.decrypted_secrets` — `current_setting('app.*')` does not work on Supabase.
+6. Grant the Edge Function's `service_role` access:
+   ```sql
+   GRANT SELECT ON recurring_sources TO service_role;
+   GRANT SELECT, INSERT ON monthly_credits TO service_role;
+   GRANT INSERT ON transactions TO service_role;
+   ```
+
+### Operations notes
+
+- **Free tier pauses the project after inactivity.** While paused the app can't reach the DB and **pg_cron does not run**, so monthly credits are skipped. After restoring, check `monthly_credits` and credit any missed months manually.
+- **Cron failed with `unrecognized configuration parameter "app.supabase_url"`** (found 2026-10-01): the original job used `current_setting('app.*')`, which was never set. It was rescheduled to read from Vault. Missed Aug/Sep 2026 credits were likely caused by this, not only by the pause.
+- Verify the cron with `SELECT jobname, schedule, active FROM cron.job;` and check runs in `cron.job_run_details` (`status`, `return_message`). The HTTP result of a call lands in `net._http_response`.
+- The Edge Function credits the **current** month regardless of the day and is idempotent, so a missed run can be recovered by running the job's `net.http_post(...)` manually within the same month.
+- The anon key cannot `DELETE` from `monthly_credits` (permission denied) — clean it from the Supabase SQL editor. `transactions` can be cleared through the anon key.
+- Data was reset for a fresh start in October 2026; categories, settings and recurring sources were kept.
 
 ## EAS builds
 
@@ -159,6 +181,8 @@ eas build --profile development --platform android   # Dev client APK
 eas build --profile preview --platform android        # Preview APK
 eas build --profile production --platform android     # Production AAB
 ```
+
+The app is only for two people, so the **preview APK is the distribution channel** — a production build is intentionally not planned. App icon changes are embedded in the APK and need a new preview build.
 
 ## Gotchas
 

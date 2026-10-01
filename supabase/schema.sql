@@ -119,15 +119,21 @@ INSERT INTO settings (id) VALUES (1) ON CONFLICT DO NOTHING;
 -- Cron: credit recurring income on the 1st of each month
 -- Runs at 03:05 UTC = 00:05 ART (UTC-3)
 -- Requires pg_cron + pg_net extensions enabled in Supabase dashboard
+-- URL and key are read from Vault (custom app.* settings are not
+-- configurable on Supabase). Create the secrets once before scheduling:
+--   SELECT vault.create_secret('https://<project-ref>.supabase.co', 'supabase_url');
+--   SELECT vault.create_secret('<legacy service_role JWT>', 'service_role_key');
+-- Use the legacy service_role JWT (eyJ...), not an sb_secret_... key.
 -- ============================================================
 -- SELECT cron.schedule(
 --   'credit-monthly-income',
 --   '5 3 1 * *',
 --   $$
 --     SELECT net.http_post(
---       url := current_setting('app.supabase_url') || '/functions/v1/credit-monthly-income',
+--       url := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'supabase_url')
+--              || '/functions/v1/credit-monthly-income',
 --       headers := jsonb_build_object(
---         'Authorization', 'Bearer ' || current_setting('app.service_role_key'),
+--         'Authorization', 'Bearer ' || (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'service_role_key'),
 --         'Content-Type',  'application/json'
 --       ),
 --       body := '{}'::jsonb
