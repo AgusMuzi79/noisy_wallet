@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Switch, Pressable, ScrollView, KeyboardAvoidingView, Platform, StyleSheet, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, TextInput, Switch, Pressable, ScrollView, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp, RecurringSource } from '../../src/context/AppContext';
-import { C, F, fmtARS, localISODate } from '../../src/theme';
+import { useSheet } from '../../src/context/SheetContext';
+import { C, F, MONTHS_ES, R, fmtARS, fmtMovDate, localMonthPrefix } from '../../src/theme';
 
-// ── Source card with local edit state ────────────────────────────────────────
+// ── Fixed source row with local edit state (persists on onEndEditing) ────────
 
-function SourceCard({
+function SourceRow({
   source,
   onUpdate,
   onRemove,
@@ -19,43 +19,65 @@ function SourceCard({
 }) {
   const [name, setName] = useState(source.name);
   const [amtRaw, setAmtRaw] = useState(String(source.amount));
+  const [amtFocused, setAmtFocused] = useState(false);
 
   // Keep in sync when Realtime updates arrive
   useEffect(() => { setName(source.name); }, [source.name]);
   useEffect(() => { setAmtRaw(String(source.amount)); }, [source.amount]);
 
+  const saveName = () => {
+    const n = name.trim();
+    if (!n) { setName(source.name); return; }
+    if (n !== source.name) onUpdate(source.id, { name: n });
+  };
+
+  const saveAmount = () => {
+    setAmtFocused(false);
+    const amount = parseInt(amtRaw || '0', 10);
+    // DB check: amount > 0 — revert instead of writing an invalid value
+    if (!amount) { setAmtRaw(String(source.amount)); return; }
+    if (amount !== source.amount) onUpdate(source.id, { amount });
+  };
+
   return (
-    <View style={[styles.sourceCard, !source.active && styles.sourceInactive]}>
-      <View style={styles.sourceNameRow}>
+    <View style={[styles.sourceRow, !source.active && styles.inactive]}>
+      <View style={styles.grow}>
         <TextInput
           value={name}
           onChangeText={setName}
-          onEndEditing={() => onUpdate(source.id, { name })}
+          onEndEditing={saveName}
+          accessibilityLabel="Nombre de la fuente"
           style={styles.sourceName}
-          placeholderTextColor={C.textMuted}
+          placeholderTextColor={C.textSubtle}
         />
-        <Pressable onPress={() => onRemove(source.id)} style={styles.trashBtn}>
-          <Feather name="trash-2" size={15} color={C.textSubtle} />
-        </Pressable>
-      </View>
-      <View style={styles.sourceAmtRow}>
-        <View style={styles.sourceAmtInput}>
+        <View style={styles.sourceAmtRow}>
           <Text style={styles.sourceAmtSign}>$</Text>
           <TextInput
-            value={amtRaw}
-            onChangeText={v => setAmtRaw(v.replace(/\D/g, ''))}
-            onEndEditing={() => onUpdate(source.id, { amount: parseInt(amtRaw || '0', 10) })}
+            value={amtFocused ? amtRaw : fmtARS(parseInt(amtRaw || '0', 10))}
+            onFocus={() => setAmtFocused(true)}
+            onChangeText={v => setAmtRaw(v.replace(/\D/g, '').slice(0, 9))}
+            onEndEditing={saveAmount}
             keyboardType="numeric"
-            style={styles.sourceAmtText}
+            accessibilityLabel="Monto mensual"
+            style={styles.sourceAmt}
           />
         </View>
-        <Switch
-          value={source.active}
-          onValueChange={v => onUpdate(source.id, { active: v })}
-          trackColor={{ false: C.surface2, true: C.primary }}
-          thumbColor={C.text}
-        />
       </View>
+      <Pressable
+        onPress={() => onRemove(source.id)}
+        accessibilityRole="button"
+        accessibilityLabel="Eliminar fuente"
+        style={({ pressed }) => [styles.trashBtn, pressed && { backgroundColor: C.surface }]}
+      >
+        <Feather name="trash-2" size={17} color={C.textSubtle} />
+      </Pressable>
+      <Switch
+        value={source.active}
+        onValueChange={v => onUpdate(source.id, { active: v })}
+        trackColor={{ false: C.surface2, true: C.primary }}
+        thumbColor={C.text}
+        accessibilityLabel="Fuente activa"
+      />
     </View>
   );
 }
@@ -63,136 +85,113 @@ function SourceCard({
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function IncomeScreen() {
-  const { state, addMovement, addSource, updateSource, removeSource } = useApp();
+  const { state, addSource, updateSource, removeSource } = useApp();
+  const { openSheet } = useSheet();
   const insets = useSafeAreaInsets();
-  const [extraRaw, setExtraRaw] = useState('');
-  const [extraNote, setExtraNote] = useState('');
 
-  const monthIncome = state.sources.filter(s => s.active).reduce((a, s) => a + s.amount, 0);
-  const extraVal = parseInt(extraRaw || '0', 10);
-
-  const addExtra = async () => {
-    if (!extraVal) return;
-    try {
-      await addMovement({
-        type: 'income',
-        amount: extraVal,
-        author: state.user1Name || 'Agus',
-        date: localISODate(),
-        note: extraNote.trim() || 'Ingreso extra',
-      });
-      setExtraRaw('');
-      setExtraNote('');
-    } catch (e: any) {
-      Alert.alert('Error al guardar', e?.message ?? 'No se pudo agregar el ingreso');
-    }
-  };
+  const fixedTotal = state.sources.filter(s => s.active).reduce((a, s) => a + s.amount, 0);
+  const monthName = MONTHS_ES[new Date().getMonth()];
+  const month = localMonthPrefix();
+  const extras = state.movements.filter(m => m.type === 'income' && m.date.startsWith(month));
+  const extrasTotal = extras.reduce((a, m) => a + m.amount, 0);
 
   return (
-    <LinearGradient colors={['#1B1726', '#0F0D15']} style={styles.flex}>
-      <KeyboardAvoidingView style={[styles.flex, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Ingresos</Text>
-          <Text style={styles.subtitle}>Las fuentes activas se acreditan solas el 1ro de cada mes.</Text>
+    <KeyboardAvoidingView
+      style={[styles.flex, { paddingTop: insets.top }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <Text style={styles.title}>Ingresos</Text>
+        <Text style={styles.subtitle}>Las fuentes fijas se acreditan solas el 1ro de cada mes.</Text>
+
+        {/* Fixed sources */}
+        <View style={[styles.sectionHead, { marginTop: 26 }]}>
+          <Text style={styles.kicker}>// fijas por mes</Text>
+          <Text style={styles.sectionTotal}>${fmtARS(fixedTotal)}</Text>
         </View>
+        {state.sources.map(s => (
+          <SourceRow key={s.id} source={s} onUpdate={updateSource} onRemove={removeSource} />
+        ))}
+        <Pressable
+          onPress={() => addSource({ name: 'Nueva fuente', amount: 1, active: true })}
+          accessibilityRole="button"
+          style={styles.addLink}
+        >
+          <Feather name="plus" size={18} color={C.primary} />
+          <Text style={styles.addLinkText}>Agregar fuente fija</Text>
+        </Pressable>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* Monthly total */}
-          <View style={styles.totalCard}>
-            <View>
-              <Text style={styles.totalKicker}>total mensual</Text>
-              <Text style={styles.totalAmount}>${fmtARS(monthIncome)}</Text>
+        {/* This month's extras */}
+        <View style={[styles.sectionHead, { marginTop: 30 }]}>
+          <Text style={styles.kicker}>// extras de {monthName}</Text>
+          <Text style={[styles.sectionTotal, { color: C.accent }]}>+${fmtARS(extrasTotal)}</Text>
+        </View>
+        {extras.map(m => (
+          <View key={m.id} style={styles.extraRow}>
+            <View style={styles.grow}>
+              <Text style={styles.extraTitle} numberOfLines={1}>{m.note || 'Ingreso extra'}</Text>
+              <Text style={styles.extraSub} numberOfLines={1}>
+                {[m.author, fmtMovDate(m.date)].filter(Boolean).join(' · ')}
+              </Text>
             </View>
-            <Feather name="trending-up" size={22} color={C.primary} />
+            <Text style={styles.extraAmt}>+${fmtARS(m.amount)}</Text>
           </View>
+        ))}
 
-          {/* Recurring sources */}
-          <Text style={styles.sectionKicker}>fuentes recurrentes</Text>
-          <View style={styles.sourcesList}>
-            {state.sources.map(s => (
-              <SourceCard
-                key={s.id}
-                source={s}
-                onUpdate={updateSource}
-                onRemove={removeSource}
-              />
-            ))}
-          </View>
-
-          <Pressable
-            onPress={() => addSource({ name: 'Nueva fuente', amount: 1, active: true })}
-            style={styles.addSourceBtn}
-          >
-            <Text style={styles.addSourceText}>+ Agregar fuente</Text>
-          </Pressable>
-
-          {/* Extra income */}
-          <Text style={[styles.sectionKicker, { marginTop: 28 }]}>ingreso extra puntual</Text>
-          <View style={styles.extraCard}>
-            <View style={styles.extraAmtRow}>
-              <Text style={styles.extraSign}>$</Text>
-              <TextInput
-                value={extraRaw}
-                onChangeText={v => setExtraRaw(v.replace(/\D/g, ''))}
-                placeholder="0"
-                placeholderTextColor={C.textSubtle}
-                keyboardType="numeric"
-                style={styles.extraInput}
-              />
-            </View>
-            <TextInput
-              value={extraNote}
-              onChangeText={setExtraNote}
-              placeholder="Nota (venta, laburo suelto…)"
-              placeholderTextColor={C.textSubtle}
-              style={styles.extraNoteInput}
-            />
-            <Pressable
-              onPress={addExtra}
-              style={[styles.extraBtn, !extraVal && styles.extraBtnDisabled]}
-              disabled={!extraVal}
-            >
-              <Text style={styles.extraBtnText}>Sumar al saldo</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+        <Pressable
+          onPress={() => openSheet('extra')}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.secondaryBtnText}>Sumar un ingreso extra</Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  header: { paddingHorizontal: 22, marginTop: 8, marginBottom: 20 },
-  title: { fontFamily: F.display, fontSize: 26, color: C.text },
-  subtitle: { fontFamily: F.sans, fontSize: 13, color: C.textMuted, marginTop: 4 },
-  scroll: { paddingHorizontal: 22, paddingBottom: 110 },
+  flex: { flex: 1, backgroundColor: C.bg },
+  grow: { flex: 1, minWidth: 0 },
+  pressed: { transform: [{ translateY: 1 }] },
+  // Bottom padding clears the floating pill nav
+  scroll: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 120 },
 
-  totalCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15, paddingHorizontal: 16, borderRadius: 16, backgroundColor: C.primarySoft, borderWidth: 1.5, borderColor: C.borderViolet, marginBottom: 18 },
-  totalKicker: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.8, textTransform: 'uppercase', color: C.textSubtle },
-  totalAmount: { fontFamily: F.mono, fontSize: 26, fontWeight: '700', color: C.text, marginTop: 3 },
+  title: { marginTop: 14, fontFamily: F.display, fontSize: 32, letterSpacing: -0.6, color: C.text },
+  subtitle: { marginTop: 6, fontFamily: F.sans, fontSize: 13.5, lineHeight: 20, color: C.textMuted },
 
-  sectionKicker: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.8, textTransform: 'uppercase', color: C.textSubtle, marginBottom: 10 },
-  sourcesList: { gap: 10 },
-  sourceCard: { padding: 14, borderRadius: 15, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border },
-  sourceInactive: { opacity: 0.5 },
-  sourceNameRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sourceName: { flex: 1, fontFamily: F.sansSemibold, fontSize: 14.5, color: C.text, backgroundColor: 'transparent' },
-  trashBtn: { width: 30, height: 30, borderRadius: 9, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' },
-  sourceAmtRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, gap: 10 },
-  sourceAmtInput: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.surfaceInset, borderWidth: 1.5, borderColor: C.border, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
-  sourceAmtSign: { fontFamily: F.mono, fontSize: 14, color: C.textSubtle },
-  sourceAmtText: { flex: 1, fontFamily: F.mono, fontSize: 15, fontWeight: '700', color: C.text },
+  sectionHead: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    paddingBottom: 12, borderBottomWidth: 1.5, borderBottomColor: C.border,
+  },
+  kicker: { fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle },
+  sectionTotal: { fontFamily: F.monoBold, fontSize: 17, color: C.text },
 
-  addSourceBtn: { marginTop: 14, padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, alignItems: 'center' },
-  addSourceText: { fontFamily: F.sansMedium, fontSize: 14, color: C.textMuted },
+  sourceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  inactive: { opacity: 0.45 },
+  sourceName: { paddingVertical: 2, fontFamily: F.sansSemibold, fontSize: 15, color: C.text },
+  sourceAmtRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 },
+  sourceAmtSign: { fontFamily: F.mono, fontSize: 13, color: C.textSubtle },
+  sourceAmt: { flex: 1, minWidth: 0, paddingVertical: 2, fontFamily: F.mono, fontSize: 13, color: C.textMuted },
+  trashBtn: { width: 40, height: 40, borderRadius: R.seg, alignItems: 'center', justifyContent: 'center' },
 
-  extraCard: { padding: 16, borderRadius: 16, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, gap: 10 },
-  extraAmtRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.surfaceInset, borderWidth: 1.5, borderColor: C.border, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 11 },
-  extraSign: { fontFamily: F.mono, fontSize: 18, fontWeight: '700', color: C.accent },
-  extraInput: { flex: 1, fontFamily: F.mono, fontSize: 22, fontWeight: '700', color: C.text },
-  extraNoteInput: { backgroundColor: C.surfaceInset, borderWidth: 1.5, borderColor: C.border, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 11, fontFamily: F.sans, fontSize: 13.5, color: C.text },
-  extraBtn: { backgroundColor: C.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  extraBtnDisabled: { opacity: 0.4 },
-  extraBtnText: { fontFamily: F.sansBold, fontSize: 15, color: C.accentContrast },
+  addLink: { marginTop: 6, height: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  addLinkText: { fontFamily: F.sansSemibold, fontSize: 14.5, color: C.primary },
+
+  extraRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  extraTitle: { fontFamily: F.sansSemibold, fontSize: 15, color: C.text },
+  extraSub: { marginTop: 2, fontFamily: F.sans, fontSize: 12.5, color: C.textSubtle },
+  extraAmt: { fontFamily: F.monoBold, fontSize: 15, color: C.accent },
+
+  secondaryBtn: {
+    marginTop: 16, height: 52, borderRadius: R.lg, borderWidth: 1.5, borderColor: C.borderStrong,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  secondaryBtnText: { fontFamily: F.sansBold, fontSize: 15.5, color: C.text },
 });
