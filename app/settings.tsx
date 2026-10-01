@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Switch, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../src/context/AppContext';
-import { C, F } from '../src/theme';
+import { C, F, R } from '../src/theme';
 
 const TIME_OPTS = [
   { label: '20:00', hour: 20 },
@@ -13,8 +14,29 @@ const TIME_OPTS = [
 
 const PIN_KEY = 'billetera_pin';
 
+const initial = (name: string) => (name.trim()[0] || '?').toUpperCase();
+
+function Toggle({ value, onValueChange, disabled, label }: {
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  return (
+    <Switch
+      value={value}
+      onValueChange={onValueChange}
+      disabled={disabled}
+      accessibilityLabel={label}
+      trackColor={{ false: C.surface2, true: C.primary }}
+      thumbColor={C.text}
+    />
+  );
+}
+
 export default function SettingsScreen() {
   const { state, saveSettings, setBio, setUserNames } = useApp();
+  const insets = useSafeAreaInsets();
   const [name1, setName1] = useState(state.user1Name);
   const [name2, setName2] = useState(state.user2Name);
 
@@ -36,105 +58,107 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="chevron-left" size={20} color={C.text} />
-        </Pressable>
-        <Text style={styles.title}>Ajustes</Text>
-      </View>
-
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-
-        <Text style={styles.sectionLabel}>personas</Text>
-        <View style={styles.card}>
-          <View style={styles.nameRow}>
-            <Text style={styles.nameLabel}>persona 1</Text>
-            <TextInput
-              value={name1}
-              onChangeText={setName1}
-              onEndEditing={saveNames}
-              style={styles.nameInput}
-              placeholderTextColor={C.textSubtle}
-              autoCapitalize="words"
-              returnKeyType="next"
-            />
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.nameRow}>
-            <Text style={styles.nameLabel}>persona 2</Text>
-            <TextInput
-              value={name2}
-              onChangeText={setName2}
-              onEndEditing={saveNames}
-              style={styles.nameInput}
-              placeholderTextColor={C.textSubtle}
-              autoCapitalize="words"
-              returnKeyType="done"
-            />
-          </View>
+        <View style={styles.header}>
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Inicio"
+            style={({ pressed }) => [styles.backBtn, pressed && { backgroundColor: C.surface }]}
+          >
+            <Feather name="chevron-left" size={20} color={C.textMuted} />
+            <Text style={styles.backText}>Inicio</Text>
+          </Pressable>
         </View>
+        <Text style={styles.title}>Ajustes</Text>
 
-        <Text style={[styles.sectionLabel, { marginTop: 24 }]}>recordatorio</Text>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <View>
-              <Text style={styles.rowTitle}>Aviso diario</Text>
-              <Text style={styles.rowDesc}>"¿Registraste los gastos de hoy?"</Text>
-            </View>
-            <Switch
-              value={state.notifEnabled}
-              onValueChange={v => saveSettings({ notifEnabled: v })}
-              trackColor={{ false: C.surface2, true: C.primary }}
-              thumbColor={C.text}
-            />
+        {/* Reminder */}
+        <Text style={[styles.kicker, { marginTop: 26 }]}>// recordatorio</Text>
+        <View style={[styles.row, styles.rowTall]}>
+          <View style={styles.grow}>
+            <Text style={styles.rowTitle}>Aviso diario</Text>
+            <Text style={styles.rowDesc}>"¿Anotaste los gastos de hoy?"</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={[styles.row, !state.notifEnabled && styles.dimmed]}>
-            <Text style={styles.rowTitle}>Horario</Text>
-            <View style={styles.timeRow}>
-              {TIME_OPTS.map(t => (
+          <Toggle
+            value={state.notifEnabled}
+            onValueChange={v => saveSettings({ notifEnabled: v })}
+            label="Aviso diario"
+          />
+        </View>
+        <View style={[styles.row, !state.notifEnabled && styles.dimmed]}>
+          <Text style={[styles.rowTitle, styles.grow]}>Hora</Text>
+          <View style={styles.seg}>
+            {TIME_OPTS.map(t => {
+              const on = state.notifHour === t.hour;
+              return (
                 <Pressable
                   key={t.hour}
                   onPress={() => saveSettings({ notifHour: t.hour })}
-                  style={[styles.pill, state.notifHour === t.hour && styles.pillActive]}
                   disabled={!state.notifEnabled}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on, disabled: !state.notifEnabled }}
+                  style={[styles.segBtn, on && styles.segBtnOn]}
                 >
-                  <Text style={[styles.pillText, state.notifHour === t.hour && styles.pillTextActive]}>
-                    {t.label}
-                  </Text>
+                  <Text style={[styles.segText, on && styles.segTextOn]}>{t.label}</Text>
                 </Pressable>
-              ))}
-            </View>
+              );
+            })}
           </View>
         </View>
 
-        <Text style={[styles.sectionLabel, { marginTop: 24 }]}>seguridad</Text>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={styles.rowTitle}>Bloqueo con PIN</Text>
-            <Switch
-              value={state.lockPin}
-              onValueChange={handlePinToggle}
-              trackColor={{ false: C.surface2, true: C.primary }}
-              thumbColor={C.text}
-            />
+        {/* People */}
+        <Text style={[styles.kicker, { marginTop: 30 }]}>// quiénes usan la billetera</Text>
+        <View style={styles.row}>
+          <View style={[styles.avatar, { backgroundColor: C.primarySoft }]}>
+            <Text style={[styles.avatarText, { color: C.primary }]}>{initial(name1)}</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={[styles.row, !state.lockPin && styles.dimmed]}>
-            <Text style={styles.rowTitle}>Huella / Face ID</Text>
-            <Switch
-              value={state.bio}
-              onValueChange={v => setBio(v)}
-              trackColor={{ false: C.surface2, true: C.primary }}
-              thumbColor={C.text}
-              disabled={!state.lockPin}
-            />
+          <TextInput
+            value={name1}
+            onChangeText={setName1}
+            onEndEditing={saveNames}
+            accessibilityLabel="Persona 1"
+            style={styles.nameInput}
+            placeholderTextColor={C.textSubtle}
+            autoCapitalize="words"
+            returnKeyType="next"
+          />
+        </View>
+        <View style={styles.row}>
+          <View style={[styles.avatar, { backgroundColor: C.accentSoft }]}>
+            <Text style={[styles.avatarText, { color: C.accent }]}>{initial(name2)}</Text>
           </View>
+          <TextInput
+            value={name2}
+            onChangeText={setName2}
+            onEndEditing={saveNames}
+            accessibilityLabel="Persona 2"
+            style={styles.nameInput}
+            placeholderTextColor={C.textSubtle}
+            autoCapitalize="words"
+            returnKeyType="done"
+          />
         </View>
 
+        {/* Security */}
+        <Text style={[styles.kicker, { marginTop: 30 }]}>// seguridad</Text>
+        <View style={[styles.row, styles.rowTall]}>
+          <Feather name="lock" size={19} color={C.textMuted} />
+          <Text style={[styles.rowTitle, styles.grow]}>Bloqueo con PIN</Text>
+          <Toggle value={state.lockPin} onValueChange={handlePinToggle} label="Bloqueo con PIN" />
+        </View>
+        <View style={[styles.row, styles.rowTall, !state.lockPin && styles.dimmed]}>
+          <View style={styles.iconSpacer} />
+          <Text style={[styles.rowTitle, styles.grow]}>Huella o Face ID</Text>
+          <Toggle
+            value={state.bio}
+            onValueChange={v => setBio(v)}
+            disabled={!state.lockPin}
+            label="Huella o Face ID"
+          />
+        </View>
       </ScrollView>
     </View>
   );
@@ -142,27 +166,35 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 22, paddingTop: 56, paddingBottom: 22 },
-  backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: F.display, fontSize: 24, color: C.text },
-  scroll: { paddingHorizontal: 22, paddingBottom: 40 },
+  grow: { flex: 1, minWidth: 0 },
+  scroll: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 40 },
 
-  sectionLabel: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.8, textTransform: 'uppercase', color: C.textSubtle, marginBottom: 10 },
-  card: { borderRadius: 16, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border, paddingHorizontal: 16 },
-  divider: { height: 1.5, backgroundColor: C.border },
+  header: { height: 44, flexDirection: 'row', alignItems: 'center' },
+  backBtn: {
+    height: 44, marginLeft: -10, paddingHorizontal: 10, borderRadius: R.lg,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+  },
+  backText: { fontFamily: F.sans, fontSize: 14.5, color: C.textMuted },
+  title: { marginTop: 6, fontFamily: F.display, fontSize: 32, letterSpacing: -0.6, color: C.text },
+
+  kicker: { paddingBottom: 4, fontFamily: F.mono, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', color: C.textSubtle },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  rowTall: { paddingVertical: 14 },
   dimmed: { opacity: 0.4 },
+  rowTitle: { fontFamily: F.sansSemibold, fontSize: 15, color: C.text },
+  rowDesc: { marginTop: 2, fontFamily: F.sans, fontSize: 12.5, color: C.textSubtle },
+  iconSpacer: { width: 19 },
 
-  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
-  nameLabel: { fontFamily: F.mono, fontSize: 10.5, letterSpacing: 1.4, textTransform: 'uppercase', color: C.textSubtle, width: 80 },
-  nameInput: { flex: 1, fontFamily: F.sansMedium, fontSize: 15, color: C.text, textAlign: 'right' },
+  seg: { flexDirection: 'row', padding: 3, borderRadius: 11, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.border },
+  segBtn: { height: 40, paddingHorizontal: 10, borderRadius: R.md, alignItems: 'center', justifyContent: 'center' },
+  segBtnOn: { backgroundColor: C.primary },
+  segText: { fontFamily: F.mono, fontSize: 12, color: C.textMuted },
+  segTextOn: { color: C.primaryContrast },
 
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
-  rowTitle: { fontFamily: F.sansSemibold, fontSize: 14.5, color: C.text },
-  rowDesc: { fontFamily: F.sans, fontSize: 12.5, color: C.textSubtle, marginTop: 2 },
-
-  timeRow: { flexDirection: 'row', gap: 6 },
-  pill: { paddingVertical: 7, paddingHorizontal: 11, borderRadius: 9, borderWidth: 1.5, borderColor: C.border },
-  pillActive: { backgroundColor: C.primary, borderColor: C.primary },
-  pillText: { fontFamily: F.mono, fontSize: 12, color: C.textMuted },
-  pillTextActive: { color: C.primaryContrast },
+  avatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontFamily: F.monoBold, fontSize: 13 },
+  nameInput: { flex: 1, minWidth: 0, paddingVertical: 4, fontFamily: F.sansSemibold, fontSize: 15, color: C.text },
 });
