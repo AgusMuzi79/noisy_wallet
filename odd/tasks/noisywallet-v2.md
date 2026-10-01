@@ -35,6 +35,7 @@ The user redesigned the app in Claude Design; v2 also reworks flows (entry sheet
 - [x] T9 — Categorías (share bar, list by month spend, tap → edit) + Nueva categoría (preview tile, contextual back/save). (commit `c37b519`; route: delegated writer; tsc no new errors (8 base lines), expo export android bundles)
 - [x] T10 — Ajustes restyle (order, initials avatars, copy). (commit `3d592ae`; route: delegated writer; tsc no new errors (8 base lines))
 - [x] T11 — Docs: CLAUDE.md (sheet, icons, tokens, v2 semantics). (commit `adf8137`; route: delegated writer; structural readback; final expo export android bundles)
+- [x] F3 — Remove PIN/biometric lock (user request): AuthGate drops lock + background re-lock, `set-pin` route and `LockScreen` deleted, Ajustes security section removed, AppContext stops reading/writing `lock_enabled` and `bio`; native modules kept installed so it ships OTA. (commit `4a40274`; route: delegated writer; tsc no new errors (8 base lines), `rg LockScreen|set-pin|lockPin|setBio|billetera_pin|LocalAuthentication|SecureStore app src` empty, expo export android bundles)
 
 ## Route
 Delegated direct: one bounded writer per batch (2+ non-trivial files per task). Parent verifies and reviews.
