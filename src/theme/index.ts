@@ -42,6 +42,7 @@ export const C = {
   warningSoft: 'rgba(245, 208, 32, 0.16)',
   info: '#2BA597',
   textInverse: '#16131D',
+  shadow: '#000000',
 } as const;
 
 // Font family names — must match names registered via useFonts
