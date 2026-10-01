@@ -9,7 +9,7 @@ import {
   SpaceGrotesk_600SemiBold,
   SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
-import { SpaceMono_400Regular } from '@expo-google-fonts/space-mono';
+import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppProvider, useApp } from '../src/context/AppContext';
 import { LockScreen } from '../src/components/LockScreen';
@@ -59,6 +59,7 @@ export default function RootLayout() {
     SpaceGrotesk_600SemiBold,
     SpaceGrotesk_700Bold,
     SpaceMono_400Regular,
+    SpaceMono_700Bold,
   });
 
   if (!fontsLoaded) return null;

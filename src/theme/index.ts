@@ -1,3 +1,5 @@
+import { Easing } from 'react-native';
+
 // NoisyDev design system tokens — dark default
 export const C = {
   bg: '#16131D',
@@ -32,6 +34,14 @@ export const C = {
 
   ink600: '#4E4668',
   ink400: '#8B83A6',
+
+  // v2 additions (NoisyDev semantic aliases, dark only)
+  primaryHover: '#C3B0F7',
+  accentHover: '#C4F29E',
+  warning: '#F5D020',
+  warningSoft: 'rgba(245, 208, 32, 0.16)',
+  info: '#2BA597',
+  textInverse: '#16131D',
 } as const;
 
 // Font family names — must match names registered via useFonts
@@ -42,6 +52,44 @@ export const F = {
   sansSemibold: 'SpaceGrotesk_600SemiBold',
   sansBold: 'SpaceGrotesk_700Bold',
   mono: 'SpaceMono_400Regular',
+  monoBold: 'SpaceMono_700Bold',
+} as const;
+
+// Radii — geometric; pill only for true pills
+export const R = {
+  xs: 3,
+  sm: 5,
+  md: 8,
+  lg: 12,
+  xl: 18,
+  // Extra steps used by v2 surfaces (segments, tiles, toast, sheet)
+  seg: 10,
+  tile: 14,
+  sheet: 28,
+  pill: 999,
+} as const;
+
+// Spacing — 4px base grid; screens use a 24px gutter
+export const S = {
+  s1: 4,
+  s2: 8,
+  s3: 12,
+  s4: 16,
+  s5: 24,
+  s6: 32,
+  s7: 40,
+  s8: 48,
+  gutter: 24,
+} as const;
+
+// Motion — snappy with an optional retro overshoot
+export const M = {
+  easeOut: Easing.bezier(0.22, 1, 0.36, 1),
+  easeInOut: Easing.bezier(0.65, 0, 0.35, 1),
+  pop: Easing.bezier(0.34, 1.56, 0.64, 1),
+  fast: 120,
+  base: 200,
+  slow: 360,
 } as const;
 
 export const hexAlpha = (hex: string, a: number) => {

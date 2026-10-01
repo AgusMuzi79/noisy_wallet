@@ -22,7 +22,7 @@ The user redesigned the app in Claude Design; v2 also reworks flows (entry sheet
 - Ignore the design frame bg `#0E0C13`.
 
 ## Tasks
-- [ ] T1 — Theme tokens + fonts: radii `R`, spacing, motion, `F.monoBold`, hover colours in `src/theme/index.ts`; load `SpaceMono_700Bold` in `app/_layout.tsx`.
+- [x] T1 — Theme tokens + fonts: radii `R`, spacing, motion, `F.monoBold`, hover colours in `src/theme/index.ts`; load `SpaceMono_700Bold` in `app/_layout.tsx`. (route: delegated writer; tsc no new errors)
 - [ ] T2 — Icons: 18-icon set via `CategoryIcon` (Feather + `mci:` MaterialCommunityIcons), palette order; `add-category.tsx`, `edit-category.tsx`.
 - [ ] T3 — Context data API: `addMovement`/`addCategory` return id; expose `createdAt`; month selectors; running balance; grouped recurring credits helper.
 - [ ] T4 — Pill nav: `BottomNav.tsx`, `(tabs)/_layout.tsx`.
