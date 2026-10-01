@@ -55,10 +55,10 @@ No test runner in the project → no RED/GREEN. Per task: `npx tsc --noEmit` (no
 - T5: sheet state (mode, draft, undo toast, `lastAdded`) lives in `src/context/SheetContext.tsx`; `EntrySheet` + `UndoToast` render once in `app/_layout.tsx`. "Nueva" tile closes the sheet and pushes `/add-category?from=sheet`; add-category reopens the sheet on unmount (save, back or hardware back) keeping the draft and selecting the new category.
 - T6: `Odometer` and `MovementRow` extracted for reuse (T7). Ghost bite triggers on any ratio drop (own entry, partner's Realtime entry or undo of an income). `useReduceMotion` hook in theme.
 
-- T7: grouped "Ingresos fijos" rows long-press delete all their member credits (one confirm). Author filter hides credits (no author); segment hidden when `user2Name` is empty.
+- T7: recurring credits (grouped "Ingresos fijos" rows) are NOT long-press deletable (`10de8fc`): deleting them would leave `monthly_credits` marked and the month could never be re-credited. Author filter hides credits (no author); segment hidden when `user2Name` is empty.
 - T8: a zero/empty source amount reverts instead of writing (DB check `amount > 0`).
 - T9: share bar / rows only include active categories; subtitle uses `monthSpent` (all expenses this month). Editor screens duplicate the form (no new shared component file was in scope).
-- T10: settings copy "¿Anotaste…" changed in the UI only; the push body in `src/lib/notifications.ts` still says "¿Registraste…" (out of edit scope).
+- T10: copy "¿Anotaste…" in settings and in the push body (`e65168d`).
 
 ## Next step
-Parent review of F1–T11; optionally align the notification body copy; then OTA/preview install and on-device check.
+Review F1–T11 approved and acknowledged (lineage `review-9d75e04ab4a98be3`). Next: preview build (first APK with expo-updates), install, on-device check; then the user decides merge to `main`.
