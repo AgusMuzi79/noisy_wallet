@@ -39,25 +39,29 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
 
 ```
 app/
-  _layout.tsx               Root stack — fonts, AppProvider, SplashScreen, AuthGate
+  _layout.tsx               Root stack — fonts, AppProvider, SheetProvider, AuthGate; renders EntrySheet + UndoToast once
   onboarding.tsx            First-launch name setup (shown when user1Name is empty)
   set-pin.tsx               PIN creation modal (modal, slide_from_bottom)
-  settings.tsx              Ajustes: names, notification time, PIN/biometric toggles
-  add-expense.tsx           Keypad modal for logging an expense
-  add-category.tsx          Name + icon + color picker for new category
+  settings.tsx              Ajustes: reminder, names, PIN/biometric toggles
+  add-category.tsx          New category (preview tile, icon grid, colours); `?from=sheet` returns to the sheet
   edit-category.tsx         Edit/delete an existing category
   (tabs)/
     _layout.tsx             Tab navigator with custom BottomNav
-    index.tsx               Home: balance hero (Lab mode) + recent movements
-    history.tsx             Full transaction history with filters
-    income.tsx              Recurring sources + extra income form
-    categories.tsx          Category grid + add new category
+    index.tsx               Home: odometer balance, gauge, today strip, recent movements
+    history.tsx             Movimientos: type/author filters, day groups, long-press delete
+    income.tsx              Fixed sources + this month's extras (opens the sheet in extra mode)
+    categories.tsx          Categories ranked by current-month spend
 src/
-  theme/index.ts            Design tokens (C = colors, F = fonts, fmtARS, fmtMovDate, hexAlpha)
-  context/AppContext.tsx    Global state — Supabase queries + Realtime, async action functions
+  theme/index.ts            Tokens (C, F, R, S, M), useReduceMotion, fmtARS, fmtMovDate, localISODate, hexAlpha
+  context/AppContext.tsx    Global state — Supabase queries + Realtime, async actions, derived month totals
+  context/SheetContext.tsx  Entry sheet mode/draft, undo toast, lastAdded (Home row flash)
   types/index.ts            Shared types (Category, Movement, RecurringSource)
-  components/CategoryIcon.tsx Renders a category icon (Feather name or legacy emoji)
-  components/BottomNav.tsx  Custom tab bar with elevated centre FAB
+  components/EntrySheet.tsx "Anotar" bottom sheet (expense / extra income) with keypad + projection
+  components/UndoToast.tsx  "Deshacer" toast after an entry (deletes it)
+  components/Odometer.tsx   Rolling-digit balance
+  components/MovementRow.tsx Ledger row with running balance (Home + Movimientos)
+  components/CategoryIcon.tsx Category icon renderer + CATEGORY_ICONS / CATEGORY_COLORS
+  components/BottomNav.tsx  Floating pill nav with centre "Anotar" FAB
   components/LockScreen.tsx PIN keypad + biometric unlock screen
   lib/supabase.ts           Supabase client (anon key, AsyncStorage session)
   lib/notifications.ts      expo-notifications helpers (request, schedule, cancel daily reminder)
@@ -75,23 +79,29 @@ Dark-first EVA-01 palette: violet primary `#9B7CF0`, green accent `#9FE870`, nea
 Fonts (loaded via `@expo-google-fonts`):
 - `DMSerifDisplay_400Regular` → `F.display` — display headings
 - `SpaceGrotesk_*` → `F.sans*` — UI body text
-- `SpaceMono_400Regular` → `F.mono` — labels, amounts, kickers, keypad
+- `SpaceMono_400Regular` / `SpaceMono_700Bold` → `F.mono` / `F.monoBold` — labels, amounts, kickers, keypad
 
-All tokens live in `src/theme/index.ts`. Use `C.*` for colors and `F.*` for font families throughout.
+All tokens live in `src/theme/index.ts`: `C` colors, `F` fonts, `R` radii, `S` spacing, `M` motion (easings + durations). Never hard-code colors. Dark only — no light theme.
+Use RN `Animated` only (no reanimated/gesture libs — OTA-shippable) and respect `useReduceMotion()`.
 Use `fmtARS(n)` for ARS amounts and `fmtMovDate(isoDate)` to display dates as 'Hoy'/'Ayer'/'D mmm'.
+**Dates are device-local**: build `YYYY-MM-DD` with `localISODate()` and month prefixes with `localMonthPrefix()`. Never `toISOString()` — it is UTC and dates entries as tomorrow after 21:00 ART.
 
-Icons: `Feather` from `@expo/vector-icons` — already bundled with Expo SDK, no extra install.
-`LockScreen.tsx` uses `MaterialCommunityIcons` (also from `@expo/vector-icons`).
-Category icons are stored as Feather icon name strings (e.g. `'shopping-cart'`), not emojis.
-Always render category icons through `<CategoryIcon>` (never `<Feather>` directly): it draws a Feather icon when the value matches `/^[a-z][a-z0-9-]+$/` and falls back to an emoji `<Text>` for legacy DB rows.
+Icons: `Feather` + `MaterialCommunityIcons` from `@expo/vector-icons` (bundled with Expo).
+Category icons are stored as strings: plain names are Feather (`'home'`), `mci:` names are MaterialCommunityIcons (`'mci:paw'`). The picker set and palette are `CATEGORY_ICONS` / `CATEGORY_COLORS` in `CategoryIcon.tsx`.
+Always render category icons through `<CategoryIcon>` (never `<Feather>` directly); it falls back to an emoji `<Text>` for legacy DB rows.
 
-## Home screen — Lab mode (permanent)
+## Entry sheet + undo
 
-The balance hero is permanently in **Lab** style: monospace number + blinking cursor + 24-segment gauge.
-- Gauge color: green >50%, violet 22–50%, danger <22%.
-- There is no Calm mode toggle — Lab is the only visual.
-- Balance counter animates with `Animated.timing` + cubic easing when balance changes.
-- Flash (amount floating up and fading) uses `Animated.parallel` on opacity + translateY.
+- Expenses and extra incomes are entered in `EntrySheet`, opened from anywhere via `useSheet().openSheet('expense' | 'extra', { catId?, keepDraft? })` (FAB, Home today strip, Ingresos). There is no `add-expense` route.
+- The draft lives in `SheetContext`, so the sheet's "Nueva" tile can detour to `/add-category?from=sheet`; that screen reopens the sheet on exit, selecting the new category.
+- After saving, `UndoToast` shows "Deshacer" for 5 s (deletes the movement) and Home flashes the new row (`lastAdded`).
+
+## Home semantics
+
+- Hero balance is **all-time** (`initial_balance` + every movement), shown with `Odometer`.
+- Gauge ratio = balance / `monthIncome` (credited fixed income this month, or active sources until credited, + this month's extras). Colors: green >50%, violet 22–50%, danger <22%. A red ghost holds the previous ratio briefly when it drops.
+- Rows show the all-time running balance after each movement (`runningBalance`); recurring credits of the same date collapse into one "Ingresos fijos" row (`groupRecurringCredits`, client-side only).
+- Category spend (Categorías) and the extras list (Ingresos) are scoped to the current month.
 
 ## Auth / onboarding gate
 
@@ -110,10 +120,11 @@ Re-locks when app goes to background if `lockPin` is enabled.
 On mount, the provider fetches all tables in parallel and sets up a Realtime channel (`billetera-sync`) that refreshes the relevant slice of state on any `postgres_changes` event.
 
 **Context API — async functions (not dispatch):**
-- `addMovement(mv)` — inserts into `transactions`, refetches
-- `deleteMovement(id)` — deletes from `transactions`, refetches
+- `addMovement(mv)` — inserts into `transactions`, refetches, resolves to the new id (throws on error)
+- `deleteMovement(id)` — deletes from `transactions`, refetches (throws on error)
+- Derived: `monthIncome`, `monthExtraIncome`, `monthSpent`, `runningBalance`, `displayMovements`
 - `addSource(s)` / `updateSource(id, patch)` / `removeSource(id)` — recurring sources CRUD
-- `addCategory(c)` / `updateCategory(id, patch)` / `deleteCategory(id)` — categories CRUD. `edit-category.tsx` navigates back via a `useEffect` when the category disappears, so `deleteCategory` must not call `router.back()` itself
+- `addCategory(c)` / `updateCategory(id, patch)` / `deleteCategory(id)` — categories CRUD (`addCategory` resolves to the new id). `edit-category.tsx` navigates back via a `useEffect` when the category disappears, so `deleteCategory` must not call `router.back()` itself
 - `triggerMonthlyCredit()` — internal; calls the Edge Function on day 1 of the month (on mount and on foreground) as a fallback to the cron
 - `setStyle(style)` — device-local visual style preference
 - `saveSettings(patch)` — optimistic local update + writes to `settings` table; reschedules notification if `notifEnabled`/`notifHour` changed
@@ -127,7 +138,7 @@ Supabase-synced: everything else (`notifEnabled`, `notifHour`, `lockPin`, transa
 
 ```typescript
 Category        { id: string (UUID), name, icon, color }
-Movement        { id: string (UUID), type, catId?: string (UUID), amount, author, date (ISO YYYY-MM-DD), note }
+Movement        { id: string (UUID), type, catId?: string (UUID), amount, author, date (local YYYY-MM-DD), note, createdAt }
 RecurringSource { id: string (UUID), name, amount, active }
 ```
 
@@ -143,7 +154,7 @@ RecurringSource { id: string (UUID), name, amount, active }
 - `settings` table is a singleton (always `id = 1`)
 - `recurring_sources.amount` has a DB check `amount > 0` — new sources default to `1`, never `0`
 - The cron runs at 03:05 UTC (00:05 ART), schedule `5 3 1 * *`
-- `income.tsx` SourceCard uses local state for name/amount fields and persists on `onEndEditing` to avoid a DB write on every keystroke
+- `income.tsx` SourceRow uses local state for name/amount fields and persists on `onEndEditing` to avoid a DB write on every keystroke (an empty/zero amount reverts)
 - PIN is stored in `expo-secure-store` under key `billetera_pin`
 - User names are stored in AsyncStorage under `@billetera:user1` / `@billetera:user2`
 
