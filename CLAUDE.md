@@ -194,7 +194,7 @@ The app is only for two people, so the **preview APK is the distribution channel
 `expo-updates` is configured: each build profile maps to a channel of the same name (`eas.json`), and `runtimeVersion` uses the `appVersion` policy (runtime = `expo.version` in `app.json`).
 
 ```bash
-eas update --channel preview --message "describe the change"   # ship JS/asset changes to installed preview APKs
+eas update --channel preview --environment preview --message "describe the change"   # ship JS/asset changes to installed preview APKs
 ```
 
 - JS and asset changes ship via OTA; the app downloads the update on launch and applies it on the **next** launch.
