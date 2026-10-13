@@ -47,3 +47,6 @@ google-services-key.json
 
 # Supabase local temp
 supabase/.temp/
+
+# Local agent skill index
+.atl/
